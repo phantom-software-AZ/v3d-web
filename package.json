@@ -1,0 +1,33 @@
+{
+    "name": "v3d-web",
+    "version": "0.0.1",
+    "description": "",
+    "keywords": "",
+    "license": "AGPL-3.0-only",
+    "author": "Phantom Development",
+    "type": "module",
+    "scripts": {
+        "build": "webpack --config webpack.config.js",
+        "debug": "webpack-dev-server --config webpack.test.config.js",
+        "start": "npm run build && npm run dev",
+        "test": "echo \"Error: no test specified\" && exit 1"
+    },
+    "devDependencies": {
+        "@types/node": "^16.11.9",
+        "@types/webpack": "^5.28.0",
+        "copy-webpack-plugin": "^10.0.0",
+        "ts-loader": "^9.2.6",
+        "typescript": "^4.5.2",
+        "webpack": "^5.64.2",
+        "webpack-cli": "^4.9.1",
+        "webpack-dev-server": "^4.5.0"
+    },
+    "dependencies": {
+        "@mediapipe/camera_utils": "^0.3.1632432234",
+        "@mediapipe/control_utils": "^0.6.1629159505",
+        "@mediapipe/drawing_utils": "^0.3.1620248257",
+        "@mediapipe/holistic": "^0.5.1635989137",
+        "comlink": "^4.3.1",
+        "v3d-core": "^1.0.5"
+    }
+}

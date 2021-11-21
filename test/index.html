@@ -1,0 +1,49 @@
+<!doctype html>
+<html class="no-js" lang="">
+
+<head>
+  <meta charset="utf-8">
+  <title></title>
+  <meta name="description" content="">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <meta property="og:title" content="">
+  <meta property="og:type" content="">
+  <meta property="og:url" content="">
+  <meta property="og:image" content="">
+
+  <link rel="apple-touch-icon" href="img/icon.png">
+  <!-- Place favicon.ico in the root directory -->
+
+  <link rel="stylesheet" href="css/main.css">
+
+  <meta name="theme-color" content="#fafafa">
+
+  <link rel="stylesheet" type="text/css" href="css/control_utils.css" crossorigin="anonymous">
+
+</head>
+
+<body>
+
+  <!-- Add your site or application content here -->
+  <div class="container">
+      <video class="input_video"></video>
+      <div class="canvas-container">
+          <canvas id="webgl-canvas" class="output_canvas" width="960px" height="720px">
+          </canvas>
+          <canvas id="video-canvas" class="output_canvas" width="960px" height="720px">
+          </canvas>
+      </div>
+      <div class="loading">
+          <div class="spinner"></div>
+          <div class="message">
+              Loading
+          </div>
+      </div>
+  </div>
+  <div class="control-panel">
+  </div>
+  <script type="module" src="main.test.js"></script>
+</body>
+
+</html>
