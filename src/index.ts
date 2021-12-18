@@ -54,7 +54,7 @@ import {Data, drawConnectors, drawLandmarks, drawRectangle, lerp} from "@mediapi
 
 import {V3DCore} from "v3d-core/dist/src";
 import {contain} from "./helper/canvas";
-import {exposeObj, obj, poseResults} from "./worker/pose-processing";
+import {Poses} from "./worker/pose-processing";
 
 
 /*
@@ -75,16 +75,14 @@ const videoCanvasCtx = videoCanvasElement.getContext('2d')!;
  */
 const poseProcessingWorker = new Worker(new URL("./worker/pose-processing.ts", import.meta.url),
     {type: 'module'});
-const exposedObj = Comlink.wrap<typeof exposeObj>(poseProcessingWorker);
-let workerTestObj, workerPose;
+const workerPose = Comlink.wrap<Poses>(poseProcessingWorker);
 async function init() {
     // WebWorkers use `postMessage` and therefore work with Comlink.
-    workerTestObj = await exposedObj.obj;
-    workerPose = await exposedObj.poseResults;
-    alert(`Counter: ${workerTestObj.counter}`);
-    workerTestObj.inc(3);
-    await workerTestObj.spin();
-    alert(`Counter: ${workerTestObj.counter}`);
+    // workerTestObj = await exposedObj.obj;
+    alert(`Counter: ${workerPose.counter}`);
+    await workerPose.inc(3);
+    await workerPose.spin();
+    alert(`Counter: ${workerPose.counter}`);
 }
 
 init();
@@ -152,6 +150,13 @@ spinner.ontransitionend = () => {
 function onResults(results: Results): void {
     // Hide the spinner.
     document.body.classList.add('loaded');
+
+    // Worker process
+    workerPose.process(
+        (({ segmentationMask, image, ...o }) => o)(results)    // Remove canvas properties
+    ).then((r) => {
+        console.log("Results processed!");
+    });
 
     // Remove landmarks we don't want to draw.
     removeLandmarks(results);
