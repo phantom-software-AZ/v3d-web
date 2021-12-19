@@ -16,74 +16,106 @@ Copyright (C) 2021  The v3d Authors.
 
 import * as Comlink from "comlink"
 import {
-    FaceGeometry, FACEMESH_RIGHT_EYE,
-    GpuBuffer,
+    FACEMESH_RIGHT_EYE,
     NormalizedLandmark,
-    NormalizedLandmarkList,
     POSE_LANDMARKS,
     Results
 } from "@mediapipe/holistic";
-import {Nullable, Quaternion} from "@babylonjs/core";
+import {Nullable} from "@babylonjs/core";
 import {Vector3} from "@babylonjs/core";
 
+type VectorizedLandmark3 = [VectorizedLandmark, VectorizedLandmark, VectorizedLandmark];
 export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
 
-export interface Poses {
-    results: Nullable<CloneableResults>,
-    process: (r: CloneableResults) => void,
-    // Debug
-    counter: number,
-    inc: (i: number) => void,
-    spin: () => void,
-}
+export class Poses {
+    public results: Nullable<CloneableResults> = null;
+    public poseLandmarks: Nullable<VectorizedLandmarkList> = null;
 
-const normalizedLandmarkToVector = (l: NormalizedLandmark) => new Vector3(l.x, l.y, l.z);
-
-function calcFaceCenter(results: CloneableResults): Vector3 {
-    const nose = normalizedLandmarkToVector(results.poseLandmarks[POSE_LANDMARKS.NOSE]);
-    const left_eye = normalizedLandmarkToVector(results.poseLandmarks[POSE_LANDMARKS.LEFT_EYE]);
-    const right_eye = normalizedLandmarkToVector(results.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE]);
-    const left_ear = normalizedLandmarkToVector(results.poseLandmarks[POSE_LANDMARKS.LEFT_EAR]);
-    const right_ear = normalizedLandmarkToVector(results.poseLandmarks[POSE_LANDMARKS.RIGHT_EAR]);
-    console.log(right_eye);
-    // Mid points
-    const mid_eye = left_eye.add(right_eye).scaleInPlace(0.5);
-    const mid_ear = left_ear.add(right_ear).scaleInPlace(0.5);
-
-    const res = Vector3.Zero();
-    const arr = [];
-    const idx = new Set<number>();
-    FACEMESH_RIGHT_EYE.forEach((v) => {
-        idx.add(v[0]);
-        idx.add(v[1]);
-    });
-    const idxArr = Array.from(idx);
-    for (let i = 0; i <= idxArr.length; i++) {
-        arr.push(results.faceLandmarks[idxArr[i]]);
+    private _faceNormal: Vector3 = Vector3.Zero();
+    get faceNormal(): Vector3 {
+        return this._faceNormal;
     }
-    console.log(arr);
-    // mid_ear.subtract(mid_eye).cross(mid_ear.subtract(nose)).rotateByQuaternionToRef(
-    //     Quaternion.FromEulerAngles(0, mesh.rotation.y, 0), res);
+    set faceNormal(value: Vector3) {
+        this._faceNormal = value;
+    }
 
-    return null;
-}
+    constructor() {}
 
-const poseResults : Poses = {
-    results: null,
-    process: function (results) {
+    public process (results: CloneableResults) {
         this.results = results;
         if (!this.results) return;
         // console.log(this.results);
 
         // Calculate face center
-        const face_center = calcFaceCenter(this.results);
-    },
+        this.calcFaceNormal(this.results);
+        console.log(this._faceNormal);
+        // Create pose landmark list
+        if (results.poseLandmarks) {
+            this.poseLandmarks = results.poseLandmarks.map((v) => {
+                return {pos: normalizedLandmarkToVector(v), visibility: v.visibility};
+            });
+        }
+    }
+
+    private calcFaceNormal(results: CloneableResults) {
+        if (!this.poseLandmarks)
+            return;
+        const nose = this.poseLandmarks[POSE_LANDMARKS.NOSE];
+        const left_eye_inner = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_INNER];
+        const right_eye_inner = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_INNER];
+        const left_eye_outer = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_OUTER];
+        const right_eye_outer = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_OUTER];
+        // @ts-ignore
+        const mouth_left = this.poseLandmarks[POSE_LANDMARKS.LEFT_RIGHT];    // Mis-named in MediaPipe JS code
+        // @ts-ignore
+        const mouth_right = this.poseLandmarks[POSE_LANDMARKS.RIGHT_LEFT];    // Mis-named in MediaPipe JS code
+        const vertices: VectorizedLandmark3[] = [
+            [left_eye_inner, left_eye_outer, nose],
+            [right_eye_outer, right_eye_inner, nose],
+            [mouth_left, mouth_right, nose]
+        ]
+
+        // Calculate normals
+        const reverse = true;
+        const normal = vertices.reduce((prev, curr) =>
+                prev.add(Poses.normalFromVertices(curr, reverse)),
+            Vector3.Zero()).normalize();
+
+        // TODO: use face mesh instead
+        // Debug
+        if (results.faceLandmarks) {
+            const arr = [];
+            const idx = new Set<number>();
+            FACEMESH_RIGHT_EYE.forEach((v) => {
+                idx.add(v[0]);
+                idx.add(v[1]);
+            });
+            const idxArr = Array.from(idx);
+            for (let i = 0; i <= idxArr.length; i++) {
+                arr.push(results.faceLandmarks[idxArr[i]]);
+            }
+            console.log(arr);
+        }
+
+        this._faceNormal = normal;
+    }
+
+    private static normalFromVertices(vertices: VectorizedLandmark3, reverse: boolean) {
+        if (reverse)
+            vertices.reverse();
+        const vec = [];
+        for (let i = 0; i < 2; ++i) {
+            vec.push(vertices[i + 1].pos.subtract(vertices[i].pos));
+        }
+        return vec[0].cross(vec[1]).normalize();
+    }
+
     // Debug
-    counter: 0,
-    inc(i: number = 1) {
+    public counter = 0;
+    public inc(i: number = 1) {
         this.counter += i;
-    },
-    async spin() {
+    }
+    public async spin (){
         let i = 0;
         while (i < 10000) {
             console.log(i);
@@ -92,6 +124,17 @@ const poseResults : Poses = {
         }
     }
 }
+
+export declare interface VectorizedLandmark {
+    pos: Vector3,
+    visibility?: number;
+}
+
+export type VectorizedLandmarkList = VectorizedLandmark[];
+
+const normalizedLandmarkToVector = (l: NormalizedLandmark) => new Vector3(l.x, l.y, l.z);
+
+const poseResults : Poses = new Poses();
 
 function sleep(ms: number) {
     return new Promise(resolve => setTimeout(resolve, ms));
