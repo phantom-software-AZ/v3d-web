@@ -101,9 +101,10 @@ holistic.onResults(mainOnResults);
 // options.
 createControlPanel(holistic, videoElement, controlsElement, activeEffect, fpsControl);
 
+let debugInfo;
 window.onload = async (e) => {
     console.log("Onload");
-    await createScene(engine);
+    debugInfo = await createScene(engine);
 };
 
 export {};

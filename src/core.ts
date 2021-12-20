@@ -15,9 +15,20 @@ Copyright (C) 2021  The v3d Authors.
  */
 
 import {V3DCore} from "v3d-core/dist/src";
-import {MeshBuilder, Scene} from "@babylonjs/core";
+import {Mesh, MeshBuilder, Nullable, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
+import {makeSphere} from "./helper/debug";
+import {initArray, POSE_LANDMARK_LENGTH} from "./helper/utils";
+import {VectorizedLandmark, VectorizedLandmarkList} from "./worker/pose-processing";
+
+// Debug
+import "@babylonjs/core/Debug";
+import "@babylonjs/gui";
+import "@babylonjs/inspector";
+import {NormalizedLandmarkList} from "@mediapipe/holistic";
+const IS_DEBUG = true;
+export let debugInfo: Nullable<DebugInfo>;
 
 export async function createScene(engine: Engine) {
     const vrmFile = 'testfiles/2078913627571329107.vrm';
@@ -56,5 +67,39 @@ export async function createScene(engine: Engine) {
 
     // Work with BlendShape(MorphTarget)
     vrmManager.morphing('Joy', 1.0);
+
+    // Debug
+    if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
 }
 
+class DebugInfo {
+    public poseLandmarkSpheres: Mesh[];
+
+    constructor(
+        private readonly scene: Scene
+    ) {
+        this.poseLandmarkSpheres = this.initPoseLandmarks();
+        scene.debugLayer.show({
+            globalRoot: document.getElementById('wrapper') as HTMLElement,
+            handleResize: true,
+        });
+    }
+
+    private initPoseLandmarks() {
+        return initArray<Mesh>(
+            POSE_LANDMARK_LENGTH,
+            () => makeSphere(
+                this.scene, Vector3.One(), {diameter: 1}));
+    }
+
+    public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
+        if (resultPoseLandmarks.length != POSE_LANDMARK_LENGTH) return;
+        for (let i = 0; i < POSE_LANDMARK_LENGTH; ++i) {
+            this.poseLandmarkSpheres[i].position.set(
+                resultPoseLandmarks[i].x,
+                resultPoseLandmarks[i].y,
+                resultPoseLandmarks[i].z
+            );
+        }
+    }
+}

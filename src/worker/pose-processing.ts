@@ -18,18 +18,28 @@ import * as Comlink from "comlink"
 import {
     FACEMESH_RIGHT_EYE,
     NormalizedLandmark,
+    NormalizedLandmarkList,
     POSE_LANDMARKS,
     Results
 } from "@mediapipe/holistic";
 import {Nullable} from "@babylonjs/core";
 import {Vector3} from "@babylonjs/core";
+import {initArray, POSE_LANDMARK_LENGTH} from "../helper/utils";
 
 type VectorizedLandmark3 = [VectorizedLandmark, VectorizedLandmark, VectorizedLandmark];
 export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
 
 export class Poses {
-    public results: Nullable<CloneableResults> = null;
-    public poseLandmarks: Nullable<VectorizedLandmarkList> = null;
+    public cloneableResults: Nullable<CloneableResults> = null;
+    private poseLandmarks: VectorizedLandmarkList = initArray<VectorizedLandmark>(
+        POSE_LANDMARK_LENGTH, () => {
+            return {pos: Vector3.Zero()}
+        });
+    // Cannot use Vector3 directly since Comlink RPC erases all methods
+    public cloneablePoseLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        POSE_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
 
     private _faceNormal: Vector3 = Vector3.Zero();
     get faceNormal(): Vector3 {
@@ -42,15 +52,18 @@ export class Poses {
     constructor() {}
 
     public process (results: CloneableResults) {
-        this.results = results;
-        if (!this.results) return;
-        // console.log(this.results);
+        this.cloneableResults = results;
+        if (!this.cloneableResults) return;
 
         // Calculate face center
-        this.calcFaceNormal(this.results);
+        this.calcFaceNormal(this.cloneableResults);
         console.log(this._faceNormal);
+
         // Create pose landmark list
         if (results.poseLandmarks) {
+            if (results.poseLandmarks.length != POSE_LANDMARK_LENGTH)
+                console.warn(`Pose Landmark list has a length less than ${POSE_LANDMARK_LENGTH}!`);
+            this.cloneablePoseLandmarks = results.poseLandmarks;
             this.poseLandmarks = results.poseLandmarks.map((v) => {
                 return {pos: normalizedLandmarkToVector(v), visibility: v.visibility};
             });

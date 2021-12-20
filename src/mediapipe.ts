@@ -42,6 +42,9 @@ import {
 import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
+import {Vector3} from "@babylonjs/core";
+import {debugInfo} from "./core";
+
 
 function removeElements(
     landmarks: NormalizedLandmarkList, elements: number[]) {
@@ -95,8 +98,12 @@ export function onResults(
     workerPose.process(
         (({ segmentationMask, image, ...o }) => o)(results)    // Remove canvas properties
     ).then(async (r) => {
-        const resultPoseLandmarks = await workerPose.poseLandmarks;
+        const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
         console.log(resultPoseLandmarks);
+        if (debugInfo) {
+            debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
+            console.log(debugInfo.poseLandmarkSpheres);
+        }
         console.log("Results processed!");
     });
 
