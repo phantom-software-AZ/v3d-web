@@ -44,7 +44,9 @@ import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_util
 import {Poses} from "./worker/pose-processing";
 import {Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
+import {FrameMonitor, normalizedLandmarkToVector} from "./helper/utils";
 
+const frameMonitor = new FrameMonitor();
 
 function removeElements(
     landmarks: NormalizedLandmarkList, elements: number[]) {
@@ -95,16 +97,19 @@ export function onResults(
     document.body.classList.add('loaded');
 
     // Worker process
+    const dt = frameMonitor.sampleFrame();
     workerPose.process(
-        (({ segmentationMask, image, ...o }) => o)(results)    // Remove canvas properties
+        (({ segmentationMask, image, ...o }) => o)(results),    // Remove canvas properties
+        dt,
     ).then(async (r) => {
         const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
-        console.log(resultPoseLandmarks);
+        const resultFaceNormals = await workerPose.faceNormals;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
-            console.log(debugInfo.poseLandmarkSpheres);
+            debugInfo.updateFaceNormalArrows(
+                resultFaceNormals, resultPoseLandmarks);
         }
-        console.log("Results processed!");
+        // console.log("Results processed!");
     });
 
     // Remove landmarks we don't want to draw.

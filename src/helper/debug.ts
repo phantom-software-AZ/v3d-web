@@ -14,8 +14,8 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Mesh, MeshBuilder, Scene, Vector3} from "@babylonjs/core";
-import {Vector4} from "@babylonjs/core/Maths";
+import {Mesh, MeshBuilder, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
+import {Color3, Vector4} from "@babylonjs/core/Maths";
 
 type createSphereOptions = {
     segments?: number;
@@ -34,11 +34,18 @@ type createSphereOptions = {
 export function makeSphere(
     scene: Scene,
     pos?: Vector3,
+    color?: number,
     options?: createSphereOptions) : Mesh {
     const sphere = MeshBuilder.CreateSphere("sphere",
         options || {
             diameterX: 1, diameterY: 0.5, diameterZ: 0.5
         }, scene);
+    const material = new StandardMaterial("sphereMaterial", scene);
+    if (color) {
+        material.diffuseColor = Color3.FromHexString(color.toString(16));
+    }
+    sphere.material = material;
+
     if (pos)
         sphere.position = pos;
 

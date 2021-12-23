@@ -15,18 +15,17 @@ Copyright (C) 2021  The v3d Authors.
  */
 
 import {V3DCore} from "v3d-core/dist/src";
-import {Mesh, MeshBuilder, Nullable, Scene} from "@babylonjs/core";
+import {ArcRotateCamera, Mesh, Nullable, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
 import {makeSphere} from "./helper/debug";
-import {initArray, POSE_LANDMARK_LENGTH} from "./helper/utils";
-import {VectorizedLandmark, VectorizedLandmarkList} from "./worker/pose-processing";
+import {Arrow3D, initArray, normalizedLandmarkToVector, POSE_LANDMARK_LENGTH} from "./helper/utils";
 
 // Debug
 import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
-import {NormalizedLandmarkList} from "@mediapipe/holistic";
+import {NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
@@ -43,6 +42,8 @@ export async function createScene(engine: Engine) {
 
     // Camera
     v3DCore.attachCameraTo(vrmManager);
+    (v3DCore.mainCamera as ArcRotateCamera).setPosition(new Vector3(0, 0, -5));
+    (v3DCore.mainCamera as ArcRotateCamera).setTarget(Vector3.Zero());
 
     // Lights
     v3DCore.addAmbientLight(new Color3(1, 1, 1));
@@ -74,11 +75,13 @@ export async function createScene(engine: Engine) {
 
 class DebugInfo {
     public poseLandmarkSpheres: Mesh[];
+    public faceNormalArrows: Arrow3D[];
 
     constructor(
         private readonly scene: Scene
     ) {
         this.poseLandmarkSpheres = this.initPoseLandmarks();
+        this.faceNormalArrows = this.initFaceNormalArrows();
         scene.debugLayer.show({
             globalRoot: document.getElementById('wrapper') as HTMLElement,
             handleResize: true,
@@ -89,7 +92,15 @@ class DebugInfo {
         return initArray<Mesh>(
             POSE_LANDMARK_LENGTH,
             () => makeSphere(
-                this.scene, Vector3.One(), {diameter: 1}));
+                this.scene, Vector3.One(), undefined, {diameter: 0.05}));
+    }
+
+    private initFaceNormalArrows() {
+        return initArray<Arrow3D>(
+            1,    // Temp magical number
+            () => new Arrow3D(this.scene,
+                0.02, 32, 0.08, 0.08,
+                0.5, Vector3.Zero(), Vector3.One()));
     }
 
     public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
@@ -99,6 +110,20 @@ class DebugInfo {
                 resultPoseLandmarks[i].x,
                 resultPoseLandmarks[i].y,
                 resultPoseLandmarks[i].z
+            );
+        }
+    }
+
+    public updateFaceNormalArrows(
+        resultFaceNormals: NormalizedLandmarkList,
+        resultPoseLandmarks: NormalizedLandmarkList
+    ) {
+        if (resultFaceNormals.length != this.faceNormalArrows.length) return;
+        for (let i = 0; i < this.faceNormalArrows.length; ++i) {
+            this.faceNormalArrows[i].updateStartAndDirection(
+                normalizedLandmarkToVector(
+                    resultPoseLandmarks[POSE_LANDMARKS.NOSE]),
+                normalizedLandmarkToVector(resultFaceNormals[i]),
             );
         }
     }

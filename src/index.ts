@@ -52,24 +52,16 @@ const videoCanvasCtx = videoCanvasElement.getContext('2d')!;
 const poseProcessingWorker = new Worker(new URL("./worker/pose-processing.ts", import.meta.url),
     {type: 'module'});
 const workerPose = Comlink.wrap<Poses>(poseProcessingWorker);
-async function workerInit() {
-    // WebWorkers use `postMessage` and therefore work with Comlink.
-    // workerTestObj = await exposedObj.obj;
-    alert(`Counter: ${workerPose.counter}`);
-    await workerPose.inc(3);
-    await workerPose.spin();
-    alert(`Counter: ${workerPose.counter}`);
-}
-
-workerInit();
-
-/*
- * Babylonjs
- */
-let engine: Engine;
-if (Engine.isSupported()) {
-    engine = new Engine(webglCanvasElement, true);
-}
+// async function workerInit() {
+//     // WebWorkers use `postMessage` and therefore work with Comlink.
+//     // workerTestObj = await exposedObj.obj;
+//     alert(`Counter: ${workerPose.counter}`);
+//     await workerPose.inc(3);
+//     await workerPose.spin();
+//     alert(`Counter: ${workerPose.counter}`);
+// }
+//
+// workerInit();
 
 /*
  * MediaPipe
@@ -96,6 +88,14 @@ const mainOnResults = (results: Results) => onResults(
     fpsControl
 );
 holistic.onResults(mainOnResults);
+
+/*
+ * Babylonjs
+ */
+let engine: Engine;
+if (Engine.isSupported()) {
+    engine = new Engine(webglCanvasElement, true);
+}
 
 // Present a control panel through which the user can manipulate the solution
 // options.
