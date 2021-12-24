@@ -19,13 +19,19 @@ import {ArcRotateCamera, Mesh, Nullable, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
 import {makeSphere} from "./helper/debug";
-import {Arrow3D, initArray, normalizedLandmarkToVector, POSE_LANDMARK_LENGTH} from "./helper/utils";
+import {
+    Arrow3D,
+    initArray,
+    normalizedLandmarkToVector,
+    POSE_LANDMARK_LENGTH,
+} from "./helper/utils";
+import {NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
+import chroma from "chroma-js";
 
 // Debug
 import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
-import {NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
@@ -74,14 +80,16 @@ export async function createScene(engine: Engine) {
 }
 
 class DebugInfo {
-    public poseLandmarkSpheres: Mesh[];
-    public faceNormalArrows: Arrow3D[];
+    private poseLandmarkSpheres: Mesh[];
+    private faceNormalArrows: Arrow3D[];
+    private faceMeshLandmarkSpheres: Nullable<Mesh[][]> = null;
 
     constructor(
         private readonly scene: Scene
     ) {
         this.poseLandmarkSpheres = this.initPoseLandmarks();
         this.faceNormalArrows = this.initFaceNormalArrows();
+
         scene.debugLayer.show({
             globalRoot: document.getElementById('wrapper') as HTMLElement,
             handleResize: true,
@@ -103,8 +111,25 @@ class DebugInfo {
                 0.5, Vector3.Zero(), Vector3.One()));
     }
 
+    private initFaceMeshLandmarks(indexList: number[][]) {
+        return initArray<Mesh[]>(
+            indexList.length,
+            (i) => {
+                return initArray<Mesh>(
+                    indexList[i].length,
+                    ((() => {
+                        const colors = chroma.scale('Spectral')
+                            .colors(indexList[i].length, 'hex');
+                        return (i) => {
+                            return makeSphere(
+                                this.scene, Vector3.One(), colors[i], {diameter: 0.01})
+                        };
+                    })()));
+            });
+    }
+
     public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
-        if (resultPoseLandmarks.length != POSE_LANDMARK_LENGTH) return;
+        if (resultPoseLandmarks.length !== POSE_LANDMARK_LENGTH) return;
         for (let i = 0; i < POSE_LANDMARK_LENGTH; ++i) {
             this.poseLandmarkSpheres[i].position.set(
                 resultPoseLandmarks[i].x,
@@ -118,7 +143,7 @@ class DebugInfo {
         resultFaceNormals: NormalizedLandmarkList,
         resultPoseLandmarks: NormalizedLandmarkList
     ) {
-        if (resultFaceNormals.length != this.faceNormalArrows.length) return;
+        if (resultFaceNormals.length !== this.faceNormalArrows.length) return;
         for (let i = 0; i < this.faceNormalArrows.length; ++i) {
             this.faceNormalArrows[i].updateStartAndDirection(
                 normalizedLandmarkToVector(
@@ -127,4 +152,23 @@ class DebugInfo {
             );
         }
     }
+
+    public updateFaceMeshLandmarkSpheres(
+        resultFaceMeshIndexLandmarks: number[][],
+        resultFaceMeshLandmarks: NormalizedLandmarkList[]) {
+        if (resultFaceMeshIndexLandmarks.length !== 0 && !this.faceMeshLandmarkSpheres)
+            this.faceMeshLandmarkSpheres = this.initFaceMeshLandmarks(resultFaceMeshIndexLandmarks);
+        if (!this.faceMeshLandmarkSpheres ||
+            resultFaceMeshLandmarks.length !== this.faceMeshLandmarkSpheres.length) return;
+        for (let i = 0; i < this.faceMeshLandmarkSpheres.length; ++i) {
+            for (let j = 0; j < this.faceMeshLandmarkSpheres[i].length; ++j) {
+                this.faceMeshLandmarkSpheres[i][j].position.set(
+                    resultFaceMeshLandmarks[i][j].x,
+                    resultFaceMeshLandmarks[i][j].y,
+                    resultFaceMeshLandmarks[i][j].z
+                );
+            }
+        }
+    }
+
 }

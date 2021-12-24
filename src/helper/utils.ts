@@ -17,10 +17,10 @@ Copyright (C) 2021  The v3d Authors.
 import {Mesh, MeshBuilder, Nullable, PrecisionDate, Scene, Vector3} from "@babylonjs/core";
 import {NormalizedLandmark} from "@mediapipe/holistic";
 
-export function initArray<T>(length: number, initializer: () => T) {
+export function initArray<T>(length: number, initializer: (i: number) => T) {
     let arr = new Array<T>(length);
     for (let i = 0; i < length; i++)
-        arr[i] = initializer();
+        arr[i] = initializer(i);
     return arr;
 }
 
@@ -158,7 +158,7 @@ export class GaussianVectorFilter {
     public push(v: Vector3) {
         this.values.push(v);
 
-        if (this.values.length == this.size + 1) {
+        if (this.values.length === this.size + 1) {
             this.values.shift();
         } else if (this.values.length > this.size + 1) {
             console.warn(`Internal queue has length longer than size: ${this.size}`);
@@ -171,7 +171,7 @@ export class GaussianVectorFilter {
     }
 
     public apply() {
-        if (this.values.length != this.size) return Vector3.Zero();
+        if (this.values.length !== this.size) return Vector3.Zero();
         const ret = this.values[0].clone();
         for (let i = 0; i < this.size; ++i) {
             ret.addInPlace(this.values[i].scale(this.kernel[i]));
@@ -187,7 +187,7 @@ export class FrameMonitor {
     // Shall only be called once per onResults()
     public sampleFrame(timeMs: number = PrecisionDate.Now) {
         let dt = 0;
-        if (this._lastFrameTimeMs != null) {
+        if (this._lastFrameTimeMs !== null) {
             dt = timeMs - this._lastFrameTimeMs;
         }
 
@@ -353,25 +353,17 @@ export const vectorToNormalizedLandmark = (l: Vector3) : NormalizedLandmark => {
     return {x: l.x, y: l.y, z: l.z};
 };
 
-export function lerpColor(pFrom:number, pTo:number, pRatio:number) {
-    const ar = (pFrom & 0xFF0000) >> 16,
-        ag = (pFrom & 0x00FF00) >> 8,
-        ab = (pFrom & 0x0000FF),
-
-        br = (pTo & 0xFF0000) >> 16,
-        bg = (pTo & 0x00FF00) >> 8,
-        bb = (pTo & 0x0000FF),
-
-        rr = ar + pRatio * (br - ar),
-        rg = ag + pRatio * (bg - ag),
-        rb = ab + pRatio * (bb - ab);
-
-    return (rr << 16) + (rg << 8) + (rb | 0);
-}
-
 export function range(start: number, end: number, step: number) {
     return Array.from(
         { length: Math.ceil((end - start) / step) },
+        (_, i) => start + i * step
+    );
+}
+
+export function linspace(start: number, end: number, div: number) {
+    const step = (end - start) / div;
+    return Array.from(
+        {length: div},
         (_, i) => start + i * step
     );
 }

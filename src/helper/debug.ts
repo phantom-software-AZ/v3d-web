@@ -34,7 +34,7 @@ type createSphereOptions = {
 export function makeSphere(
     scene: Scene,
     pos?: Vector3,
-    color?: number,
+    color?: number | string,
     options?: createSphereOptions) : Mesh {
     const sphere = MeshBuilder.CreateSphere("sphere",
         options || {
@@ -42,7 +42,9 @@ export function makeSphere(
         }, scene);
     const material = new StandardMaterial("sphereMaterial", scene);
     if (color) {
-        material.diffuseColor = Color3.FromHexString(color.toString(16));
+        if (typeof color === 'number') color = `#${color.toString(16)}`;
+        const thisColor = Color3.FromHexString(color);
+        material.diffuseColor = thisColor;
     }
     sphere.material = material;
 

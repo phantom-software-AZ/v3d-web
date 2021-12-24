@@ -104,11 +104,16 @@ export function onResults(
     ).then(async (r) => {
         const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
         const resultFaceNormals = await workerPose.faceNormals;
+        const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
+        const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             debugInfo.updateFaceNormalArrows(
                 resultFaceNormals, resultPoseLandmarks);
+            debugInfo.updateFaceMeshLandmarkSpheres(
+                resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
         }
+
         // console.log("Results processed!");
     });
 

@@ -16,7 +16,9 @@ Copyright (C) 2021  The v3d Authors.
 
 import * as Comlink from "comlink"
 import {
-    FACEMESH_RIGHT_EYE,
+    FACEMESH_FACE_OVAL,
+    FACEMESH_LEFT_EYE, FACEMESH_LEFT_EYEBROW, FACEMESH_LEFT_IRIS, FACEMESH_LIPS,
+    FACEMESH_RIGHT_EYE, FACEMESH_RIGHT_EYEBROW, FACEMESH_RIGHT_IRIS,
     NormalizedLandmark,
     NormalizedLandmarkList,
     POSE_LANDMARKS,
@@ -67,6 +69,15 @@ export class Poses {
         return this._faceNormals;
     }
 
+    private _faceMeshLandmarkIndexList: number[][] = [];
+    get faceMeshLandmarkIndexList(): number[][] {
+        return this._faceMeshLandmarkIndexList;
+    }
+    private _faceMeshLandmarkList: NormalizedLandmarkList[] = [];
+    get faceMeshLandmarkList(): NormalizedLandmarkList[] {
+        return this._faceMeshLandmarkList;
+    }
+
     private midHipBase: Vector3 = Vector3.Zero();
     private firstResult = true;
 
@@ -113,18 +124,29 @@ export class Poses {
                 return prev.add(_normal);
             }, Vector3.Zero()).normalize();
 
-        // TODO: use face mesh instead
-        // Debug
+        // Face Mesh
+        const faceMeshConnections = [
+            FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
+            FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
+            FACEMESH_LEFT_IRIS, FACEMESH_RIGHT_IRIS,
+            FACEMESH_LIPS,
+        ]
+        this._faceMeshLandmarkIndexList.length = 0;
+        this._faceMeshLandmarkList.length = 0;
         if (this.cloneableInputResults?.faceLandmarks) {
-            const arr = [];
-            const idx = new Set<number>();
-            FACEMESH_RIGHT_EYE.forEach((v) => {
-                idx.add(v[0]);
-                idx.add(v[1]);
-            });
-            const idxArr = Array.from(idx);
-            for (let i = 0; i <= idxArr.length; i++) {
-                arr.push(this.cloneableInputResults.faceLandmarks[idxArr[i]]);
+            for (let i = 0; i < faceMeshConnections.length; ++i) {
+                const arr = [];
+                const idx = new Set<number>();
+                faceMeshConnections[i].forEach((v) => {
+                    idx.add(v[0]);
+                    idx.add(v[1]);
+                });
+                const idxArr = Array.from(idx);
+                this._faceMeshLandmarkIndexList.push(idxArr);
+                for (let j = 0; j < idxArr.length; j++) {
+                    arr.push(this.cloneableInputResults.faceLandmarks[idxArr[j]]);
+                }
+                this._faceMeshLandmarkList.push(arr);
             }
         }
 
@@ -168,14 +190,14 @@ export class Poses {
         const inputFaceLandmarks = this.cloneableInputResults?.faceLandmarks;    // Seems to be the new pose_world_landmark
         if (inputFaceLandmarks) {
             this.inputFaceLandmarks = this.preProcessLandmarks(
-                inputPoseLandmarks, this.faceLandmarks, dt);
+                inputFaceLandmarks, this.faceLandmarks, dt);
         }
     }
 
     private preProcessLandmarks(
         resultsLandmarks: NormalizedLandmark[],
         filteredLandmarks: FilteredVectorLandmarkList,
-        dt: number
+        dt: number,
     ) {
         // Reverse Y-axis. Input results use canvas coordinate system.
         resultsLandmarks.map((v) => {
