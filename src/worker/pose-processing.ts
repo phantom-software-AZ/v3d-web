@@ -27,6 +27,7 @@ import {
 import {Nullable} from "@babylonjs/core";
 import {Vector3} from "@babylonjs/core";
 import {
+    EuclideanHighPassFilter,
     FACE_LANDMARK_LENGTH,
     GaussianVectorFilter,
     initArray,
@@ -48,7 +49,8 @@ export class Poses {
         });
     private poseLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         POSE_LANDMARK_LENGTH, () => {
-            return new FilteredVectorLandmark();
+            return new FilteredVectorLandmark(
+                0.01, 2, 0.007);
         });
     public inputFaceLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
         FACE_LANDMARK_LENGTH, () => {
@@ -56,7 +58,7 @@ export class Poses {
         });
     private faceLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         FACE_LANDMARK_LENGTH, () => {
-            return new FilteredVectorLandmark();
+            return new FilteredVectorLandmark(0.02, 10);
         });
     // Cannot use Vector3 directly since Comlink RPC erases all methods
     public cloneablePoseLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
@@ -97,43 +99,36 @@ export class Poses {
         this.postPoseLandmarks();
     }
 
+    /*
+     * Calculate the face orientation from landmarks.
+     * Landmarks from Face Mesh takes precedence.
+     */
     private calcFaceNormal() {
-        if (!this.poseLandmarks)
-            return;
-        const nose = this.poseLandmarks[POSE_LANDMARKS.NOSE];
-        const left_eye_inner = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_INNER];
-        const right_eye_inner = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_INNER];
-        const left_eye_outer = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_OUTER];
-        const right_eye_outer = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_OUTER];
-        // @ts-ignore
-        const mouth_left = this.poseLandmarks[POSE_LANDMARKS.LEFT_RIGHT];    // Mis-named in MediaPipe JS code
-        // @ts-ignore
-        const mouth_right = this.poseLandmarks[POSE_LANDMARKS.RIGHT_LEFT];    // Mis-named in MediaPipe JS code
-        const vertices: FilteredVectorLandmark3[] = [
-            [left_eye_inner, mouth_left, right_eye_inner],
-            [right_eye_inner, left_eye_inner, mouth_right],
-            [mouth_left, mouth_right, nose]
-        ]
+        const normal = Vector3.One();
+        let left_eye_inner, right_eye_inner, left_eye_outer, right_eye_outer,
+            mouth_left, mouth_right;
+        if (!this.cloneableInputResults?.faceLandmarks) {
+            if (!this.cloneableInputResults?.poseLandmarks) return;
 
-        // Calculate normals
-        const reverse = false;
-        this._faceNormals.length = 0;
-        const normal = vertices.reduce((prev, curr) => {
-                const _normal = Poses.normalFromVertices(curr, reverse);
-                // this._faceNormals.push(vectorToNormalizedLandmark(_normal));
-                return prev.add(_normal);
-            }, Vector3.Zero()).normalize();
-
-        // Face Mesh
-        const faceMeshConnections = [
-            FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
-            FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
-            FACEMESH_LEFT_IRIS, FACEMESH_RIGHT_IRIS,
-            FACEMESH_LIPS,
-        ]
-        this._faceMeshLandmarkIndexList.length = 0;
-        this._faceMeshLandmarkList.length = 0;
-        if (this.cloneableInputResults?.faceLandmarks) {
+            const nose = this.poseLandmarks[POSE_LANDMARKS.NOSE];
+            left_eye_inner = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_INNER];
+            right_eye_inner = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_INNER];
+            left_eye_outer = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_OUTER];
+            right_eye_outer = this.poseLandmarks[POSE_LANDMARKS.RIGHT_EYE_OUTER];
+            // @ts-ignore
+            mouth_left = this.poseLandmarks[POSE_LANDMARKS.LEFT_RIGHT];    // Mis-named in MediaPipe JS code
+            // @ts-ignore
+            mouth_right = this.poseLandmarks[POSE_LANDMARKS.RIGHT_LEFT];    // Mis-named in MediaPipe JS code
+        } else {
+            // Unpack face mesh landmarks
+            const faceMeshConnections = [
+                FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
+                FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
+                FACEMESH_LEFT_IRIS, FACEMESH_RIGHT_IRIS,
+                FACEMESH_LIPS,
+            ]
+            this._faceMeshLandmarkIndexList.length = 0;
+            this._faceMeshLandmarkList.length = 0;
             for (let i = 0; i < faceMeshConnections.length; ++i) {
                 const arr = [];
                 const idx = new Set<number>();
@@ -144,11 +139,40 @@ export class Poses {
                 const idxArr = Array.from(idx);
                 this._faceMeshLandmarkIndexList.push(idxArr);
                 for (let j = 0; j < idxArr.length; j++) {
-                    arr.push(this.cloneableInputResults.faceLandmarks[idxArr[j]]);
+                    arr.push({
+                        x: this.faceLandmarks[idxArr[j]].pos.x,
+                        y: this.faceLandmarks[idxArr[j]].pos.y,
+                        z: this.faceLandmarks[idxArr[j]].pos.x,
+                        visibility: this.faceLandmarks[idxArr[j]].visibility,
+                    });
                 }
                 this._faceMeshLandmarkList.push(arr);
             }
+
+            // Get points from face mesh
+            left_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][8]];
+            right_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][8]];
+            left_eye_outer = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][0]];
+            right_eye_outer = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][0]];
+            mouth_left = this.faceLandmarks[this.faceMeshLandmarkIndexList[6][10]];
+            mouth_right = this.faceLandmarks[this.faceMeshLandmarkIndexList[6][0]];
         }
+
+        const vertices: FilteredVectorLandmark3[] = [
+            [left_eye_inner, mouth_left, right_eye_inner],
+            [right_eye_inner, left_eye_inner, mouth_right],
+            [mouth_left, mouth_right, right_eye_inner],
+            [mouth_left, mouth_right, left_eye_inner],
+        ]
+
+        // Calculate normals
+        const reverse = false;
+        this._faceNormals.length = 0;
+        normal.copyFrom(vertices.reduce((prev, curr) => {
+            const _normal = Poses.normalFromVertices(curr, reverse);
+            // this._faceNormals.push(vectorToNormalizedLandmark(_normal));
+            return prev.add(_normal);
+        }, Vector3.Zero()).normalize());
 
         this._faceNormals.push(vectorToNormalizedLandmark(normal));
     }
@@ -184,13 +208,15 @@ export class Poses {
             }
 
             this.inputPoseLandmarks = this.preProcessLandmarks(
-                inputPoseLandmarks, this.poseLandmarks, dt);
+                inputPoseLandmarks, this.poseLandmarks, dt,
+                new Vector3(0, this.midHipBase.y, 0));
         }
 
         const inputFaceLandmarks = this.cloneableInputResults?.faceLandmarks;    // Seems to be the new pose_world_landmark
         if (inputFaceLandmarks) {
             this.inputFaceLandmarks = this.preProcessLandmarks(
-                inputFaceLandmarks, this.faceLandmarks, dt);
+                inputFaceLandmarks, this.faceLandmarks, dt,
+                Vector3.Zero());
         }
     }
 
@@ -198,10 +224,13 @@ export class Poses {
         resultsLandmarks: NormalizedLandmark[],
         filteredLandmarks: FilteredVectorLandmarkList,
         dt: number,
+        offset: Vector3
     ) {
         // Reverse Y-axis. Input results use canvas coordinate system.
         resultsLandmarks.map((v) => {
-            v.y = -v.y + this.midHipBase.y;
+            v.x = v.x + offset.x;
+            v.y = -v.y + offset.y;
+            v.z = v.z + offset.z;
         });
         // Noise filtering
         for (let i = 0; i < resultsLandmarks.length; ++i) {
@@ -231,6 +260,7 @@ enum LandmarkTimeIncrementMode {
 export class FilteredVectorLandmark {
     private oneEuroVectorFilter: OneEuroVectorFilter;
     // private gaussianVectorFilter: GaussianVectorFilter;
+    private highPassFilter: EuclideanHighPassFilter;
     private _tIncrementMode = LandmarkTimeIncrementMode.Universal;
 
     private _t = 0;
@@ -246,16 +276,21 @@ export class FilteredVectorLandmark {
         return this._pos;
     }
 
-    public visibility = 0;
+    public visibility : number | undefined = 0;
 
-    constructor() {
+    constructor(
+        oneEuroCutoff = 0.01,
+        oneEuroBeta = 0,
+        highPassThreshold = 0.003,
+    ) {
         this.oneEuroVectorFilter = new OneEuroVectorFilter(
             this.t,
             this.pos,
             Vector3.Zero(),
-            0.01,
-            1);
+            oneEuroCutoff,
+            oneEuroBeta);
         // this.gaussianVectorFilter = new GaussianVectorFilter(10, 1);
+        this.highPassFilter = new EuclideanHighPassFilter(highPassThreshold);
     }
 
     public updatePosition(dt: number, pos: Vector3, visibility?: number) {
@@ -264,11 +299,15 @@ export class FilteredVectorLandmark {
         else if (this._tIncrementMode === LandmarkTimeIncrementMode.RealTime)
             this.t += dt;    // Assuming 60 fps
 
-        if (visibility && visibility > Poses.VISIBILITY_THRESHOLD) {
+        // Face Mesh has no visibility
+        if (!visibility || visibility > Poses.VISIBILITY_THRESHOLD) {
             this._pos = this.oneEuroVectorFilter.next(this.t, pos);
 
             // this.gaussianVectorFilter.push(this._pos);
             // this._pos = this.gaussianVectorFilter.apply();
+
+            this.highPassFilter.update(this._pos);
+            this._pos = this.highPassFilter.value;
 
             this.visibility = visibility;
         }

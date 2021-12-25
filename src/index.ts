@@ -64,6 +64,14 @@ const workerPose = Comlink.wrap<Poses>(poseProcessingWorker);
 // workerInit();
 
 /*
+ * Babylonjs
+ */
+let engine: Engine;
+if (Engine.isSupported()) {
+    engine = new Engine(webglCanvasElement, true);
+}
+
+/*
  * MediaPipe
  */
 let activeEffect = 'mask';
@@ -87,15 +95,9 @@ const mainOnResults = (results: Results) => onResults(
     activeEffect,
     fpsControl
 );
-holistic.onResults(mainOnResults);
-
-/*
- * Babylonjs
- */
-let engine: Engine;
-if (Engine.isSupported()) {
-    engine = new Engine(webglCanvasElement, true);
-}
+holistic.initialize().then(() => {
+    holistic.onResults(mainOnResults);
+});
 
 // Present a control panel through which the user can manipulate the solution
 // options.
@@ -106,5 +108,6 @@ window.onload = async (e) => {
     console.log("Onload");
     debugInfo = await createScene(engine);
 };
+
 
 export {};

@@ -100,7 +100,7 @@ class DebugInfo {
         return initArray<Mesh>(
             POSE_LANDMARK_LENGTH,
             () => makeSphere(
-                this.scene, Vector3.One(), undefined, {diameter: 0.05}));
+                this.scene, Vector3.One(), undefined, {diameter: 0.02}));
     }
 
     private initFaceNormalArrows() {
@@ -156,12 +156,19 @@ class DebugInfo {
     public updateFaceMeshLandmarkSpheres(
         resultFaceMeshIndexLandmarks: number[][],
         resultFaceMeshLandmarks: NormalizedLandmarkList[]) {
+        const toShow = [
+            [],[],
+            [0, 2, 5, 8], [0, 3, 7, 8],
+            [], [],
+            [0, 3, 7, 10],
+        ];
         if (resultFaceMeshIndexLandmarks.length !== 0 && !this.faceMeshLandmarkSpheres)
             this.faceMeshLandmarkSpheres = this.initFaceMeshLandmarks(resultFaceMeshIndexLandmarks);
         if (!this.faceMeshLandmarkSpheres ||
             resultFaceMeshLandmarks.length !== this.faceMeshLandmarkSpheres.length) return;
         for (let i = 0; i < this.faceMeshLandmarkSpheres.length; ++i) {
             for (let j = 0; j < this.faceMeshLandmarkSpheres[i].length; ++j) {
+                // if (!toShow[i].includes(j)) continue;
                 this.faceMeshLandmarkSpheres[i][j].position.set(
                     resultFaceMeshLandmarks[i][j].x,
                     resultFaceMeshLandmarks[i][j].y,

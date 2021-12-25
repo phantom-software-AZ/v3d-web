@@ -181,6 +181,28 @@ export class GaussianVectorFilter {
     }
 }
 
+export class EuclideanHighPassFilter {
+    private _value: Vector3 = Vector3.Zero();
+    get value(): Vector3 {
+        return this._value;
+    }
+
+    constructor(
+        private readonly threshold: number
+    ) {}
+
+    public update(v: Vector3) {
+        // console.log(this.value.subtract(v).length());
+        if (this.value.subtract(v).length() > this.threshold) {
+            this._value = v;
+        }
+    }
+
+    public reset() {
+        this._value = Vector3.Zero();
+    }
+}
+
 export class FrameMonitor {
     private _lastFrameTimeMs: Nullable<number> = null;
 
