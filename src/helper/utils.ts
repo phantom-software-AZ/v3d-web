@@ -422,3 +422,13 @@ export const HAND_LANDMARKS = {
     PINKY_DIP: 19,
     PINKY_TIP: 20,
 };
+
+export const remapRange = (
+    v: number,
+    src_low: number,
+    src_high: number,
+    dst_low: number,
+    dst_high: number
+) => {
+    return dst_low + (v - src_low) * (dst_high - dst_low) / (src_high - src_low);
+};

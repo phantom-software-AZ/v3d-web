@@ -23,7 +23,7 @@ import {
     POSE_LANDMARKS,
     Results
 } from "@mediapipe/holistic";
-import {Nullable} from "@babylonjs/core";
+import {Nullable, Quaternion} from "@babylonjs/core";
 import {Vector3} from "@babylonjs/core";
 import {
     EuclideanHighPassFilter,
@@ -32,11 +32,25 @@ import {
     initArray,
     normalizedLandmarkToVector,
     OneEuroVectorFilter,
-    POSE_LANDMARK_LENGTH, vectorToNormalizedLandmark
+    POSE_LANDMARK_LENGTH, remapRange, vectorToNormalizedLandmark
 } from "../helper/utils";
 
 type FilteredVectorLandmark3 = [FilteredVectorLandmark, FilteredVectorLandmark, FilteredVectorLandmark];
 export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
+export class CloneableQuaternion {
+    public readonly x: number;
+    public readonly y: number;
+    public readonly z: number;
+    public readonly w: number;
+
+    constructor(q: Quaternion) {
+        this.x = q.x;
+        this.y = q.y;
+        this.z = q.z;
+        this.w = q.w;
+    }
+}
+export type CloneableQuaternionList = CloneableQuaternion[];
 
 export class Poses {
     public static readonly VISIBILITY_THRESHOLD: number = 0.6;
@@ -48,6 +62,11 @@ export class Poses {
     ];
     private static readonly HAND_POSITION_SCALING = 0.8;
     private static readonly HAND_HIGH_PASS_THRESHOLD = 0.008;
+
+    private static readonly IRIS_MP_X_RANGE = 0.03;
+    private static readonly IRIS_MP_Y_RANGE = 0.025;
+    private static readonly IRIS_BJS_X_RANGE = 0.25;
+    private static readonly IRIS_BJS_Y_RANGE = 0.22;
 
     // Results
     public cloneableInputResults: Nullable<CloneableResults> = null;
@@ -128,6 +147,10 @@ export class Poses {
     get faceNormals(): NormalizedLandmarkList {
         return this._faceNormals;
     }
+    private _irisQuaternion: CloneableQuaternionList = [];
+    get irisQuaternion(): CloneableQuaternionList {
+        return this._irisQuaternion;
+    }
 
     private midHipBase: Nullable<Vector3> = null;
 
@@ -146,8 +169,11 @@ export class Poses {
         this.postLandmarks(this.leftHandLandmarks, this.cloneableLeftHandLandmarks);
         this.postLandmarks(this.rightHandLandmarks, this.cloneableRightHandLandmarks);
 
-        // Calculate face center
+        // Calculate face orientation
         this.calcFaceNormal();
+
+        // Calculate iris orientations
+        this.calcIrisNormal();
 
         // Post processing
     }
@@ -202,6 +228,88 @@ export class Poses {
         this._faceNormals.push(vectorToNormalizedLandmark(normal));
     }
 
+    /*
+     * Remap positional offsets to rotations.
+     * Iris only have positional offsets. Their normals always face front.
+     */
+    private calcIrisNormal() {
+        if (!this.cloneableInputResults?.faceLandmarks) return;
+
+        // Get points from face mesh
+        const left_iris_top = this.faceLandmarks[this.faceMeshLandmarkIndexList[4][1]];
+        const left_iris_bottom = this.faceLandmarks[this.faceMeshLandmarkIndexList[4][3]];
+        const left_iris_left = this.faceLandmarks[this.faceMeshLandmarkIndexList[4][2]];
+        const left_iris_right = this.faceLandmarks[this.faceMeshLandmarkIndexList[4][0]];
+        const right_iris_top = this.faceLandmarks[this.faceMeshLandmarkIndexList[5][1]];
+        const right_iris_bottom = this.faceLandmarks[this.faceMeshLandmarkIndexList[5][3]];
+        const right_iris_left = this.faceLandmarks[this.faceMeshLandmarkIndexList[5][2]];
+        const right_iris_right = this.faceLandmarks[this.faceMeshLandmarkIndexList[5][0]];
+
+        const leftIrisCenter = left_iris_top.pos
+            .add(left_iris_bottom.pos)
+            .add(left_iris_left.pos)
+            .add(left_iris_right.pos)
+            .scale(0.5);
+        const rightIrisCenter = right_iris_top.pos
+            .add(right_iris_bottom.pos)
+            .add(right_iris_left.pos)
+            .add(right_iris_right.pos)
+            .scale(0.5);
+
+        // Calculate eye center
+        const left_eye_top = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][12]];
+        const left_eye_bottom = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][4]];
+        const left_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][15]];
+        const left_eye_outer = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][9]];
+        const right_eye_top = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][12]];
+        const right_eye_bottom = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][4]];
+        const right_eye_outer = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][9]];
+        const right_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][15]];
+
+        const leftEyeCenter = left_eye_top.pos
+            .add(left_eye_bottom.pos)
+            .add(left_eye_inner.pos)
+            .add(left_eye_outer.pos)
+            .scale(0.5);
+        const rightEyeCenter = right_eye_top.pos
+            .add(right_eye_bottom.pos)
+            .add(right_eye_outer.pos)
+            .add(right_eye_inner.pos)
+            .scale(0.5);
+
+        // Calculate offsets
+        const leftIrisOffset = leftIrisCenter.subtract(leftEyeCenter);
+        const rightIrisOffset = rightIrisCenter.subtract(rightEyeCenter);
+
+        /* Remap offsets to quaternions
+         * Using arbitrary range:
+         * MediaPipe Iris:
+         * x: -0.03, 0.03
+         * y: -0.025, 0.025
+         * BabylonJS RotationYawPitchRoll:
+         * x: -0.25, 0.25
+         * y: -0.25, 0.25
+         */
+        const leftIrisRotationYPR = Quaternion.RotationYawPitchRoll(
+            remapRange(leftIrisOffset.x, -Poses.IRIS_MP_X_RANGE, Poses.IRIS_MP_X_RANGE,
+                -Poses.IRIS_BJS_X_RANGE, Poses.IRIS_BJS_X_RANGE),
+            remapRange(leftIrisOffset.y, -Poses.IRIS_MP_Y_RANGE, Poses.IRIS_MP_Y_RANGE,
+                -Poses.IRIS_BJS_Y_RANGE, Poses.IRIS_BJS_Y_RANGE),
+            0
+        );
+        const rightIrisRotationYPR = Quaternion.RotationYawPitchRoll(
+            remapRange(rightIrisOffset.x, -Poses.IRIS_MP_X_RANGE, Poses.IRIS_MP_X_RANGE,
+                -Poses.IRIS_BJS_X_RANGE, Poses.IRIS_BJS_X_RANGE),
+            remapRange(rightIrisOffset.y, -Poses.IRIS_MP_Y_RANGE, Poses.IRIS_MP_Y_RANGE,
+                -Poses.IRIS_BJS_Y_RANGE, Poses.IRIS_BJS_Y_RANGE),
+            0
+        );
+
+        this._irisQuaternion.length = 0;
+        this._irisQuaternion.push(new CloneableQuaternion(leftIrisRotationYPR));
+        this._irisQuaternion.push(new CloneableQuaternion(rightIrisRotationYPR));
+    }
+
     private static normalFromVertices(vertices: FilteredVectorLandmark3, reverse: boolean) {
         if (reverse)
             vertices.reverse();
@@ -244,11 +352,6 @@ export class Poses {
         const inputLeftHandLandmarks = this.cloneableInputResults?.leftHandLandmarks;
         const inputRightHandLandmarks = this.cloneableInputResults?.rightHandLandmarks;
         if (inputLeftHandLandmarks) {
-            // console.log(
-            //     this.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos,
-            //     normalizedLandmarkToVector(inputLeftHandLandmarks[HAND_LANDMARKS.WRIST]),
-            //     this.leftWristOffset.pos
-            // );
             this.leftWristOffset.updatePosition(
                 dt,
                 this.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos.subtract(

@@ -108,14 +108,17 @@ export function onResults(
         const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
         const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
         const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
+        const resultIrisQuaternions = await workerPose.irisQuaternion;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
-            debugInfo.updateFaceNormalArrows(
-                resultFaceNormals, resultPoseLandmarks);
+            // debugInfo.updateFaceNormalArrows(
+            //     resultFaceNormals, resultPoseLandmarks);
             debugInfo.updateFaceMeshLandmarkSpheres(
                 resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
             debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
             debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
+            debugInfo.updateIrisQuaternionArrows(
+                resultIrisQuaternions, resultPoseLandmarks, resultFaceNormals);
         }
 
         console.debug("Results processed!");
