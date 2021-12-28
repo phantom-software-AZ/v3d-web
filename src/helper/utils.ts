@@ -220,6 +220,7 @@ export class FrameMonitor {
 
 export const POSE_LANDMARK_LENGTH = 33;
 export const FACE_LANDMARK_LENGTH = 478;
+export const HAND_LANDMARK_LENGTH = 21;
 
 export class Arrow3D {
     //Shape profile in XY plane
@@ -370,7 +371,15 @@ export class Arrow3D {
     }
 }
 
-export const normalizedLandmarkToVector = (l: NormalizedLandmark) => new Vector3(l.x, l.y, l.z);
+export const normalizedLandmarkToVector = (
+    l: NormalizedLandmark,
+    scaling = 1.,
+    reverseY = false) => {
+    return new Vector3(
+        l.x * scaling,
+        reverseY ? -l.y * scaling : l.y * scaling,
+        l.z * scaling);
+}
 export const vectorToNormalizedLandmark = (l: Vector3) : NormalizedLandmark => {
     return {x: l.x, y: l.y, z: l.z};
 };
@@ -389,3 +398,27 @@ export function linspace(start: number, end: number, div: number) {
         (_, i) => start + i * step
     );
 }
+
+export const HAND_LANDMARKS = {
+    WRIST: 0,
+    THUMB_CMC: 1,
+    THUMB_MCP: 2,
+    THUMB_IP: 3,
+    THUMB_TIP: 4,
+    INDEX_FINGER_MCP: 5,
+    INDEX_FINGER_PIP: 6,
+    INDEX_FINGER_DIP: 7,
+    INDEX_FINGER_TIP: 8,
+    MIDDLE_FINGER_MCP: 9,
+    MIDDLE_FINGER_PIP: 10,
+    MIDDLE_FINGER_DIP: 11,
+    MIDDLE_FINGER_TIP: 12,
+    RING_FINGER_MCP: 13,
+    RING_FINGER_PIP: 14,
+    RING_FINGER_DIP: 15,
+    RING_FINGER_TIP: 16,
+    PINKY_MCP: 17,
+    PINKY_PIP: 18,
+    PINKY_DIP: 19,
+    PINKY_TIP: 20,
+};

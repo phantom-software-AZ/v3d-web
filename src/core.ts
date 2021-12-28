@@ -20,7 +20,7 @@ import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
 import {makeSphere} from "./helper/debug";
 import {
-    Arrow3D,
+    Arrow3D, HAND_LANDMARK_LENGTH,
     initArray,
     normalizedLandmarkToVector,
     POSE_LANDMARK_LENGTH,
@@ -74,21 +74,28 @@ export async function createScene(engine: Engine) {
 
     // Work with BlendShape(MorphTarget)
     vrmManager.morphing('Joy', 1.0);
+    // TODO: Debug only
+    // @ts-ignore
+    window['vrmManager'] = vrmManager;
 
     // Debug
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
 }
 
 class DebugInfo {
-    private poseLandmarkSpheres: Mesh[];
-    private faceNormalArrows: Arrow3D[];
+    private readonly poseLandmarkSpheres: Mesh[];
+    private readonly faceNormalArrows: Arrow3D[];
     private faceMeshLandmarkSpheres: Nullable<Mesh[][]> = null;
+    private readonly leftHandLandmarkSpheres: Mesh[];
+    private readonly rightHandLandmarkSpheres: Mesh[];
 
     constructor(
         private readonly scene: Scene
     ) {
-        this.poseLandmarkSpheres = this.initPoseLandmarks();
+        this.poseLandmarkSpheres = this.initLandmarks(POSE_LANDMARK_LENGTH);
         this.faceNormalArrows = this.initFaceNormalArrows();
+        this.leftHandLandmarkSpheres = this.initLandmarks(HAND_LANDMARK_LENGTH, '#ff0000');
+        this.rightHandLandmarkSpheres = this.initLandmarks(HAND_LANDMARK_LENGTH, '#0022ff');
 
         scene.debugLayer.show({
             globalRoot: document.getElementById('wrapper') as HTMLElement,
@@ -96,11 +103,14 @@ class DebugInfo {
         });
     }
 
-    private initPoseLandmarks() {
+    private initLandmarks(
+        length: number,
+        color?: number | string
+    ) {
         return initArray<Mesh>(
-            POSE_LANDMARK_LENGTH,
+            length,
             () => makeSphere(
-                this.scene, Vector3.One(), undefined, {diameter: 0.02}));
+                this.scene, Vector3.One(), color, {diameter: 0.03}));
     }
 
     private initFaceNormalArrows() {
@@ -139,6 +149,22 @@ class DebugInfo {
         }
     }
 
+    public updateHandLandmarkSpheres(
+        resultHandLandmarks: NormalizedLandmarkList,
+        left: boolean
+    ) {
+        const landmarkSpheres = left ?
+            this.leftHandLandmarkSpheres :
+            this.rightHandLandmarkSpheres;
+        if (resultHandLandmarks.length !== HAND_LANDMARK_LENGTH) return;
+        for (let i = 0; i < HAND_LANDMARK_LENGTH; ++i) {
+            landmarkSpheres[i].position.set(
+                resultHandLandmarks[i].x,
+                resultHandLandmarks[i].y,
+                resultHandLandmarks[i].z
+            );
+        }
+    }
     public updateFaceNormalArrows(
         resultFaceNormals: NormalizedLandmarkList,
         resultPoseLandmarks: NormalizedLandmarkList

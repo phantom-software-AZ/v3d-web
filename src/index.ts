@@ -86,28 +86,31 @@ spinner.ontransitionend = () => {
     spinner.style.display = 'none';
 };
 
-const holistic = new Holistic();
-const mainOnResults = (results: Results) => onResults(
-    results,
-    workerPose,
-    videoCanvasElement,
-    videoCanvasCtx,
-    activeEffect,
-    fpsControl
-);
-holistic.initialize().then(() => {
-    holistic.onResults(mainOnResults);
-});
-
-// Present a control panel through which the user can manipulate the solution
-// options.
-createControlPanel(holistic, videoElement, controlsElement, activeEffect, fpsControl);
-
 let debugInfo;
-window.onload = async (e) => {
+window.addEventListener('load', async (e) => {
     console.log("Onload");
+
+    // v3d
     debugInfo = await createScene(engine);
-};
+
+    // MediaPipe
+    const holistic = new Holistic();
+    const mainOnResults = (results: Results) => onResults(
+        results,
+        workerPose,
+        videoCanvasElement,
+        videoCanvasCtx,
+        activeEffect,
+        fpsControl
+    );
+    holistic.initialize().then(() => {
+        holistic.onResults(mainOnResults);
+    });
+
+    // Present a control panel through which the user can manipulate the solution
+    // options.
+    createControlPanel(holistic, videoElement, controlsElement, activeEffect, fpsControl);
+});
 
 
 export {};

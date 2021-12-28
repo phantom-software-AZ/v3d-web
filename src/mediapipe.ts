@@ -106,15 +106,19 @@ export function onResults(
         const resultFaceNormals = await workerPose.faceNormals;
         const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
         const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
+        const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
+        const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             debugInfo.updateFaceNormalArrows(
                 resultFaceNormals, resultPoseLandmarks);
             debugInfo.updateFaceMeshLandmarkSpheres(
                 resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
+            debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
+            debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
         }
 
-        // console.log("Results processed!");
+        console.debug("Results processed!");
     });
 
     // Remove landmarks we don't want to draw.
@@ -262,12 +266,13 @@ export function createControlPanel(
     new ControlPanel(controlsElement, {
         selfieMode: true,
         modelComplexity: 1,
+        useCpuInference: false,
         smoothLandmarks: true,
         enableSegmentation: false,
         smoothSegmentation: false,
         refineFaceLandmarks: true,
-        minDetectionConfidence: 0.5,
-        minTrackingConfidence: 0.5,
+        minDetectionConfidence: 0.6,
+        minTrackingConfidence: 0.65,
         effect: 'background',
     })
         .add([
@@ -301,6 +306,8 @@ export function createControlPanel(
                 field: 'modelComplexity',
                 discrete: ['Lite', 'Full', 'Heavy'],
             }),
+            new Toggle(
+                {title: 'Use CPU Only', field: 'useCpuInference'}),
             new Toggle(
                 {title: 'Smooth Landmarks', field: 'smoothLandmarks'}),
             new Toggle(

@@ -16,7 +16,6 @@ Copyright (C) 2021  The v3d Authors.
 
 import * as Comlink from "comlink"
 import {
-    FACEMESH_FACE_OVAL,
     FACEMESH_LEFT_EYE, FACEMESH_LEFT_EYEBROW, FACEMESH_LEFT_IRIS, FACEMESH_LIPS,
     FACEMESH_RIGHT_EYE, FACEMESH_RIGHT_EYEBROW, FACEMESH_RIGHT_IRIS,
     NormalizedLandmark,
@@ -29,7 +28,7 @@ import {Vector3} from "@babylonjs/core";
 import {
     EuclideanHighPassFilter,
     FACE_LANDMARK_LENGTH,
-    GaussianVectorFilter,
+    GaussianVectorFilter, HAND_LANDMARK_LENGTH, HAND_LANDMARKS,
     initArray,
     normalizedLandmarkToVector,
     OneEuroVectorFilter,
@@ -41,8 +40,19 @@ export interface CloneableResults extends Omit<Results, 'segmentationMask'|'imag
 
 export class Poses {
     public static readonly VISIBILITY_THRESHOLD: number = 0.6;
+    public static readonly FACE_MESH_CONNECTIONS = [
+        FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
+        FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
+        FACEMESH_LEFT_IRIS, FACEMESH_RIGHT_IRIS,
+        FACEMESH_LIPS,
+    ];
+    private static readonly HAND_POSITION_SCALING = 0.8;
+    private static readonly HAND_HIGH_PASS_THRESHOLD = 0.008;
 
+    // Results
     public cloneableInputResults: Nullable<CloneableResults> = null;
+
+    // Pose Landmarks
     public inputPoseLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
         POSE_LANDMARK_LENGTH, () => {
             return {x: 0, y:0, z: 0};
@@ -52,6 +62,13 @@ export class Poses {
             return new FilteredVectorLandmark(
                 0.01, 2, 0.007);
         });
+    // Cannot use Vector3 directly since postMessage erases all methods
+    public cloneablePoseLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        POSE_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
+
+    // Face Mesh Landmarks
     public inputFaceLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
         FACE_LANDMARK_LENGTH, () => {
             return {x: 0, y:0, z: 0};
@@ -60,17 +77,6 @@ export class Poses {
         FACE_LANDMARK_LENGTH, () => {
             return new FilteredVectorLandmark(0.02, 10);
         });
-    // Cannot use Vector3 directly since Comlink RPC erases all methods
-    public cloneablePoseLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
-        POSE_LANDMARK_LENGTH, () => {
-            return {x: 0, y:0, z: 0};
-        });
-
-    private _faceNormals: NormalizedLandmarkList = [];
-    get faceNormals(): NormalizedLandmarkList {
-        return this._faceNormals;
-    }
-
     private _faceMeshLandmarkIndexList: number[][] = [];
     get faceMeshLandmarkIndexList(): number[][] {
         return this._faceMeshLandmarkIndexList;
@@ -80,8 +86,50 @@ export class Poses {
         return this._faceMeshLandmarkList;
     }
 
-    private midHipBase: Vector3 = Vector3.Zero();
-    private firstResult = true;
+    // Left Hand Landmarks
+    private leftWristOffset: FilteredVectorLandmark =
+        new FilteredVectorLandmark(
+            0.01, 2, 0.007);
+    public inputLeftHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
+    private leftHandLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return new FilteredVectorLandmark(
+                0.02, 10, Poses.HAND_HIGH_PASS_THRESHOLD);
+        });
+    public cloneableLeftHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
+
+    // Right Hand Landmarks
+    private rightWristOffset: FilteredVectorLandmark =
+        new FilteredVectorLandmark(
+            0.01, 2, 0.007);
+    public inputRightHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
+    private rightHandLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return new FilteredVectorLandmark(
+                0.02, 10, Poses.HAND_HIGH_PASS_THRESHOLD);
+        });
+    public cloneableRightHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        HAND_LANDMARK_LENGTH, () => {
+            return {x: 0, y:0, z: 0};
+        });
+
+
+    // Calculated properties
+    private _faceNormals: NormalizedLandmarkList = [];
+    get faceNormals(): NormalizedLandmarkList {
+        return this._faceNormals;
+    }
+
+    private midHipBase: Nullable<Vector3> = null;
 
     constructor() {}
 
@@ -92,11 +140,16 @@ export class Poses {
         this.preProcessResults(dt);
 
         // Actual processing
+        // Post filtered landmarks
+        this.postLandmarks(this.poseLandmarks, this.cloneablePoseLandmarks);
+        this.postFaceLandmarks();
+        this.postLandmarks(this.leftHandLandmarks, this.cloneableLeftHandLandmarks);
+        this.postLandmarks(this.rightHandLandmarks, this.cloneableRightHandLandmarks);
+
         // Calculate face center
         this.calcFaceNormal();
 
         // Post processing
-        this.postPoseLandmarks();
     }
 
     /*
@@ -108,7 +161,8 @@ export class Poses {
         let left_eye_inner, right_eye_inner, left_eye_outer, right_eye_outer,
             mouth_left, mouth_right;
         if (!this.cloneableInputResults?.faceLandmarks) {
-            if (!this.cloneableInputResults?.poseLandmarks) return;
+            // Do not use face landmarks from pose. They are inaccurate.
+            if (true || !this.cloneableInputResults?.poseLandmarks) return;
 
             const nose = this.poseLandmarks[POSE_LANDMARKS.NOSE];
             left_eye_inner = this.poseLandmarks[POSE_LANDMARKS.LEFT_EYE_INNER];
@@ -120,35 +174,6 @@ export class Poses {
             // @ts-ignore
             mouth_right = this.poseLandmarks[POSE_LANDMARKS.RIGHT_LEFT];    // Mis-named in MediaPipe JS code
         } else {
-            // Unpack face mesh landmarks
-            const faceMeshConnections = [
-                FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
-                FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
-                FACEMESH_LEFT_IRIS, FACEMESH_RIGHT_IRIS,
-                FACEMESH_LIPS,
-            ]
-            this._faceMeshLandmarkIndexList.length = 0;
-            this._faceMeshLandmarkList.length = 0;
-            for (let i = 0; i < faceMeshConnections.length; ++i) {
-                const arr = [];
-                const idx = new Set<number>();
-                faceMeshConnections[i].forEach((v) => {
-                    idx.add(v[0]);
-                    idx.add(v[1]);
-                });
-                const idxArr = Array.from(idx);
-                this._faceMeshLandmarkIndexList.push(idxArr);
-                for (let j = 0; j < idxArr.length; j++) {
-                    arr.push({
-                        x: this.faceLandmarks[idxArr[j]].pos.x,
-                        y: this.faceLandmarks[idxArr[j]].pos.y,
-                        z: this.faceLandmarks[idxArr[j]].pos.x,
-                        visibility: this.faceLandmarks[idxArr[j]].visibility,
-                    });
-                }
-                this._faceMeshLandmarkList.push(arr);
-            }
-
             // Get points from face mesh
             left_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[2][8]];
             right_eye_inner = this.faceLandmarks[this.faceMeshLandmarkIndexList[3][8]];
@@ -196,7 +221,7 @@ export class Poses {
             if (inputPoseLandmarks.length !== POSE_LANDMARK_LENGTH)
                 console.warn(`Pose Landmark list has a length less than ${POSE_LANDMARK_LENGTH}!`);
             // Remember initial offset
-            if (this.firstResult &&
+            if (!this.midHipBase &&
                 (inputPoseLandmarks[POSE_LANDMARKS.LEFT_HIP].visibility || 0) > Poses.VISIBILITY_THRESHOLD &&
                 (inputPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP].visibility || 0) > Poses.VISIBILITY_THRESHOLD
             ) {
@@ -204,19 +229,52 @@ export class Poses {
                     normalizedLandmarkToVector(inputPoseLandmarks[POSE_LANDMARKS.LEFT_HIP])
                         .add(normalizedLandmarkToVector(inputPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP]))
                         .scale(0.5);
-                this.firstResult = false;
             }
 
             this.inputPoseLandmarks = this.preProcessLandmarks(
-                inputPoseLandmarks, this.poseLandmarks, dt,
-                new Vector3(0, this.midHipBase.y, 0));
+                inputPoseLandmarks, this.poseLandmarks, dt);
         }
 
         const inputFaceLandmarks = this.cloneableInputResults?.faceLandmarks;    // Seems to be the new pose_world_landmark
         if (inputFaceLandmarks) {
             this.inputFaceLandmarks = this.preProcessLandmarks(
-                inputFaceLandmarks, this.faceLandmarks, dt,
-                Vector3.Zero());
+                inputFaceLandmarks, this.faceLandmarks, dt);
+        }
+
+        const inputLeftHandLandmarks = this.cloneableInputResults?.leftHandLandmarks;
+        const inputRightHandLandmarks = this.cloneableInputResults?.rightHandLandmarks;
+        if (inputLeftHandLandmarks) {
+            // console.log(
+            //     this.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos,
+            //     normalizedLandmarkToVector(inputLeftHandLandmarks[HAND_LANDMARKS.WRIST]),
+            //     this.leftWristOffset.pos
+            // );
+            this.leftWristOffset.updatePosition(
+                dt,
+                this.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos.subtract(
+                    normalizedLandmarkToVector(
+                        inputLeftHandLandmarks[HAND_LANDMARKS.WRIST],
+                        Poses.HAND_POSITION_SCALING,
+                        true)
+                )
+            );
+            this.inputLeftHandLandmarks = this.preProcessLandmarks(
+                inputLeftHandLandmarks, this.leftHandLandmarks, dt,
+                this.leftWristOffset.pos, Poses.HAND_POSITION_SCALING);
+        }
+        if (inputRightHandLandmarks) {
+            this.rightWristOffset.updatePosition(
+                dt,
+                this.poseLandmarks[POSE_LANDMARKS.RIGHT_WRIST].pos.subtract(
+                    normalizedLandmarkToVector(
+                        inputRightHandLandmarks[HAND_LANDMARKS.WRIST],
+                        Poses.HAND_POSITION_SCALING,
+                        true)
+                )
+            );
+            this.inputRightHandLandmarks = this.preProcessLandmarks(
+                inputRightHandLandmarks, this.rightHandLandmarks, dt,
+                this.rightWristOffset.pos, Poses.HAND_POSITION_SCALING);
         }
     }
 
@@ -224,13 +282,14 @@ export class Poses {
         resultsLandmarks: NormalizedLandmark[],
         filteredLandmarks: FilteredVectorLandmarkList,
         dt: number,
-        offset: Vector3
+        offset = Vector3.Zero(),
+        scaling = 1.
     ) {
         // Reverse Y-axis. Input results use canvas coordinate system.
         resultsLandmarks.map((v) => {
-            v.x = v.x + offset.x;
-            v.y = -v.y + offset.y;
-            v.z = v.z + offset.z;
+            v.x = v.x * scaling + offset.x;
+            v.y = -v.y * scaling + offset.y;
+            v.z = v.z * scaling + offset.z;
         });
         // Noise filtering
         for (let i = 0; i < resultsLandmarks.length; ++i) {
@@ -242,13 +301,41 @@ export class Poses {
         return resultsLandmarks;
     }
 
-    private postPoseLandmarks() {
-        this.cloneablePoseLandmarks.forEach((v, idx) => {
-            v.x = this.poseLandmarks[idx].pos.x;
-            v.y = this.poseLandmarks[idx].pos.y;
-            v.z = this.poseLandmarks[idx].pos.z;
-            v.visibility = this.poseLandmarks[idx].visibility;
+    private postLandmarks(
+        landmarks: FilteredVectorLandmarkList,
+        cloneableLandmarks: NormalizedLandmarkList
+    ) {
+        cloneableLandmarks.forEach((v, idx) => {
+            v.x = landmarks[idx].pos.x;
+            v.y = landmarks[idx].pos.y;
+            v.z = landmarks[idx].pos.z;
+            v.visibility = landmarks[idx].visibility;
         })
+    }
+
+    private postFaceLandmarks() {
+        // Unpack face mesh landmarks
+        this._faceMeshLandmarkIndexList.length = 0;
+        this._faceMeshLandmarkList.length = 0;
+        for (let i = 0; i < Poses.FACE_MESH_CONNECTIONS.length; ++i) {
+            const arr = [];
+            const idx = new Set<number>();
+            Poses.FACE_MESH_CONNECTIONS[i].forEach((v) => {
+                idx.add(v[0]);
+                idx.add(v[1]);
+            });
+            const idxArr = Array.from(idx);
+            this._faceMeshLandmarkIndexList.push(idxArr);
+            for (let j = 0; j < idxArr.length; j++) {
+                arr.push({
+                    x: this.faceLandmarks[idxArr[j]].pos.x,
+                    y: this.faceLandmarks[idxArr[j]].pos.y,
+                    z: this.faceLandmarks[idxArr[j]].pos.x,
+                    visibility: this.faceLandmarks[idxArr[j]].visibility,
+                });
+            }
+            this._faceMeshLandmarkList.push(arr);
+        }
     }
 }
 
