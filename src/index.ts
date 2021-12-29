@@ -86,17 +86,17 @@ spinner.ontransitionend = () => {
     spinner.style.display = 'none';
 };
 
-let debugInfo;
 window.addEventListener('load', async (e) => {
     console.log("Onload");
 
     // v3d
-    debugInfo = await createScene(engine);
+    const vrmManager = await createScene(engine);
 
     // MediaPipe
     const holistic = new Holistic();
     const mainOnResults = (results: Results) => onResults(
         results,
+        vrmManager,
         workerPose,
         videoCanvasElement,
         videoCanvasCtx,

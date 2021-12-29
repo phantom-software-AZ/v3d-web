@@ -44,7 +44,8 @@ import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_util
 import {Poses} from "./worker/pose-processing";
 import {Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
-import {FrameMonitor, normalizedLandmarkToVector} from "./helper/utils";
+import {cloneableQuaternionToQuaternion, FrameMonitor, normalizedLandmarkToVector} from "./helper/utils";
+import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 
 const frameMonitor = new FrameMonitor();
 
@@ -87,6 +88,7 @@ function connect(
 
 export function onResults(
     results: Results,
+    vrmManager: VRMManager,
     workerPose: Comlink.Remote<Poses>,
     videoCanvasElement: HTMLCanvasElement,
     videoCanvasCtx: CanvasRenderingContext2D,
@@ -103,7 +105,7 @@ export function onResults(
         dt,
     ).then(async (r) => {
         const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
-        const resultFaceNormals = await workerPose.faceNormals;
+        const resultFaceNormal = await workerPose.faceNormal;
         const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
         const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
         const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
@@ -111,21 +113,28 @@ export function onResults(
         const resultIrisQuaternions = await workerPose.irisQuaternion;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
-            // debugInfo.updateFaceNormalArrows(
-            //     resultFaceNormals, resultPoseLandmarks);
+            debugInfo.updateFaceNormalArrows(
+                [resultFaceNormal], resultPoseLandmarks);
             debugInfo.updateFaceMeshLandmarkSpheres(
                 resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
             debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
             debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
             debugInfo.updateIrisQuaternionArrows(
-                resultIrisQuaternions, resultPoseLandmarks, resultFaceNormals);
+                resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
         }
 
+        vrmManager.morphing('A', await workerPose.mouthMorph);
+        vrmManager.morphing('Blink', await workerPose.blinkAll);
+        // vrmManager.morphing('Blink_L', await workerPose.blinkLeft);
+        // vrmManager.morphing('Blink_R', await workerPose.blinkRight);
+
+        vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
+        vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
         console.debug("Results processed!");
     });
 
     // Remove landmarks we don't want to draw.
-    // removeLandmarks(results);
+    removeLandmarks(results);
 
     // Update the frame rate.
     fpsControl.tick();

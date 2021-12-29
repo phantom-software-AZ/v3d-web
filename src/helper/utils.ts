@@ -14,8 +14,9 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Mesh, MeshBuilder, Nullable, PrecisionDate, Scene, Vector3} from "@babylonjs/core";
+import {Angle, Mesh, MeshBuilder, Nullable, PrecisionDate, Quaternion, Scene, Vector3} from "@babylonjs/core";
 import {NormalizedLandmark} from "@mediapipe/holistic";
+import {CloneableQuaternion} from "../worker/pose-processing";
 
 export function initArray<T>(length: number, initializer: (i: number) => T) {
     let arr = new Array<T>(length);
@@ -383,6 +384,9 @@ export const normalizedLandmarkToVector = (
 export const vectorToNormalizedLandmark = (l: Vector3) : NormalizedLandmark => {
     return {x: l.x, y: l.y, z: l.z};
 };
+export const cloneableQuaternionToQuaternion = (q: CloneableQuaternion): Quaternion => {
+    return new Quaternion(q.x, q.y, q.z, q.w);
+};
 
 export function range(start: number, end: number, step: number) {
     return Array.from(
@@ -423,6 +427,18 @@ export const HAND_LANDMARKS = {
     PINKY_TIP: 20,
 };
 
+export const rangeCap = (
+    v: number,
+    min: number,
+    max: number
+) => {
+    if (min > max) {
+        const tmp = max;
+        max = min;
+        min = tmp;
+    }
+    return Math.max(Math.min(v, max), min);
+}
 export const remapRange = (
     v: number,
     src_low: number,
@@ -431,4 +447,38 @@ export const remapRange = (
     dst_high: number
 ) => {
     return dst_low + (v - src_low) * (dst_high - dst_low) / (src_high - src_low);
+};
+export const remapRangeWithCap = (
+    v: number,
+    src_low: number,
+    src_high: number,
+    dst_low: number,
+    dst_high: number
+) => {
+    const v1 = rangeCap(v, src_low, src_high);
+    return dst_low + (v1 - src_low) * (dst_high - dst_low) / (src_high - src_low);
+};
+
+// Same as three.js Quaternion.setFromUnitVectors
+export const quaternionBetweenVectors = (
+    v1: Vector3, v2: Vector3
+): Quaternion => {
+    const angle = Math.acos(Vector3.Dot(v1, v2));
+    const axis = Vector3.Cross(v1,v2);
+    return Quaternion.RotationAxis(axis, angle);
+};
+// From -180 to 180
+export const remapDegreeWithCap = (deg: number) => {
+    deg = rangeCap(deg, 0, 360);
+    return deg < 180 ? deg : deg - 360;
+}
+export const degreeBetweenVectors = (
+    v1: Vector3, v2: Vector3
+) => {
+    const angles = quaternionBetweenVectors(v1, v2).toEulerAngles();
+    return new Vector3(
+        remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
+        remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
+        remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
+    );
 };

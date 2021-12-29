@@ -27,6 +27,7 @@ import "@babylonjs/inspector";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
+// Can only have one VRM model at this time
 export async function createScene(engine: Engine) {
     const vrmFile = 'testfiles/2078913627571329107.vrm';
 
@@ -74,4 +75,6 @@ export async function createScene(engine: Engine) {
 
     // Debug
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
+
+    return vrmManager;
 }

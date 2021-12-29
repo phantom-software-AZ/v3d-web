@@ -16,9 +16,16 @@ Copyright (C) 2021  The v3d Authors.
 
 import {Mesh, MeshBuilder, Nullable, Quaternion, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
 import {Color3, Vector4} from "@babylonjs/core/Maths";
-import {Arrow3D, HAND_LANDMARK_LENGTH, initArray, normalizedLandmarkToVector, POSE_LANDMARK_LENGTH} from "./utils";
+import {
+    Arrow3D,
+    cloneableQuaternionToQuaternion,
+    HAND_LANDMARK_LENGTH,
+    initArray,
+    normalizedLandmarkToVector,
+    POSE_LANDMARK_LENGTH
+} from "./utils";
 import chroma from "chroma-js";
-import {NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
+import {NormalizedLandmark, NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
 import {CloneableQuaternion, CloneableQuaternionList} from "../worker/pose-processing";
 
 type createSphereOptions = {
@@ -61,9 +68,7 @@ export function quaternionToDirectionVector(
     base: Vector3,
     resultQuaternion: CloneableQuaternion
 ): Vector3 {
-    const quaternion = new Quaternion(
-        resultQuaternion.x, resultQuaternion.y, resultQuaternion.z, resultQuaternion.w
-    );
+    const quaternion = cloneableQuaternionToQuaternion(resultQuaternion);
     let result = Vector3.Zero();
     base.rotateByQuaternionToRef(quaternion, result);
     return result.normalize();
@@ -180,21 +185,21 @@ export class DebugInfo {
     public updateIrisQuaternionArrows(
         resultIrisQuaternions: CloneableQuaternionList,
         resultPoseLandmarks: NormalizedLandmarkList,
-        resultFaceNormals: NormalizedLandmarkList
+        resultFaceNormal: NormalizedLandmark
     ) {
-        if (resultIrisQuaternions.length !== 2) return;
+        if (resultIrisQuaternions.length !== 2 && resultIrisQuaternions.length !== 3) return;
         this.irisNormalArrows[0].updateStartAndDirection(
             normalizedLandmarkToVector(
                 resultPoseLandmarks[POSE_LANDMARKS.LEFT_EYE]),
             quaternionToDirectionVector(
-                normalizedLandmarkToVector(resultFaceNormals[resultFaceNormals.length - 1]),
+                normalizedLandmarkToVector(resultFaceNormal),
                 resultIrisQuaternions[0]),
         );
         this.irisNormalArrows[1].updateStartAndDirection(
             normalizedLandmarkToVector(
                 resultPoseLandmarks[POSE_LANDMARKS.RIGHT_EYE]),
             quaternionToDirectionVector(
-                normalizedLandmarkToVector(resultFaceNormals[resultFaceNormals.length - 1]),
+                normalizedLandmarkToVector(resultFaceNormal),
                 resultIrisQuaternions[1]),
         );
     }
@@ -206,7 +211,7 @@ export class DebugInfo {
             [],[],
             [9, 4, 15, 12], [0, 4, 8, 12],
             [0, 1, 2, 3], [0, 1, 2, 3],
-            [0, 3, 7, 10],
+            [24, 25, 26, 34, 35, 36],
         ];
         if (resultFaceMeshIndexLandmarks.length !== 0 && !this.faceMeshLandmarkSpheres)
             this.faceMeshLandmarkSpheres = this.initFaceMeshLandmarks(resultFaceMeshIndexLandmarks);
