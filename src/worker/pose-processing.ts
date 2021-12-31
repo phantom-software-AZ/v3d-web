@@ -30,11 +30,12 @@ import {
     EuclideanHighPassFilter,
     FACE_LANDMARK_LENGTH,
     GaussianVectorFilter, HAND_LANDMARK_LENGTH, HAND_LANDMARKS,
-    initArray,
+    initArray, KeysMatching,
     normalizedLandmarkToVector,
     OneEuroVectorFilter,
-    POSE_LANDMARK_LENGTH, remapRangeWithCap, vectorToNormalizedLandmark
+    POSE_LANDMARK_LENGTH, quaternionBetweenVectors, ReadonlyKeys, remapRangeWithCap, vectorToNormalizedLandmark
 } from "../helper/utils";
+import {TransformNode} from "v3d-core/lib/Babylon.js/.temp/packageES6/core/Meshes/transformNode";
 
 type FilteredVectorLandmark3 = [
     FilteredVectorLandmark,
@@ -43,12 +44,16 @@ type FilteredVectorLandmark3 = [
 ];
 export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
 export class CloneableQuaternion {
-    public readonly x: number;
-    public readonly y: number;
-    public readonly z: number;
-    public readonly w: number;
+    public x: number = 0;
+    public y: number = 0;
+    public z: number = 0;
+    public w: number = 1;
 
     constructor(q: Quaternion) {
+        this.set(q);
+    }
+
+    public set(q: Quaternion) {
         this.x = q.x;
         this.y = q.y;
         this.z = q.z;
@@ -56,6 +61,42 @@ export class CloneableQuaternion {
     }
 }
 export type CloneableQuaternionList = CloneableQuaternion[];
+export class HandBoneRotations {
+    public Hand: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public ThumbProximal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public ThumbIntermediate: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public ThumbDistal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public IndexProximal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public IndexIntermediate: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public IndexDistal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public MiddleProximal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public MiddleIntermediate: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public MiddleDistal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public RingProximal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public RingIntermediate: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public RingDistal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public LittleProximal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public LittleIntermediate: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+    public LittleDistal: CloneableQuaternion = new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0));
+
+    constructor() {}
+}
 
 export class PoseKeyPoints {
     public nose = new FilteredVectorLandmark();
@@ -89,6 +130,7 @@ export class PoseKeyPoints {
     public mouth_right = new FilteredVectorLandmark();
 }
 
+export type PosesKeys = keyof Omit<Poses, KeysMatching<Poses, Function> | ReadonlyKeys<Poses>>;
 export class Poses {
     public static readonly VISIBILITY_THRESHOLD: number = 0.6;
     public static readonly FACE_MESH_CONNECTIONS = [
@@ -108,7 +150,7 @@ export class Poses {
     private static readonly BLINK_MP_RANGE_LOW = 0.0155;
     private static readonly BLINK_MP_RANGE_HIGH = 0.018;
     private static readonly MOUTH_MP_RANGE_LOW = 0.0006;
-    private static readonly MOUTH_MP_RANGE_HIGH = 0.07;
+    private static readonly MOUTH_MP_RANGE_HIGH = 0.06;
 
     private static readonly EYE_WIDTH_BASELINE = 0.0526;
     private static readonly MOUTH_WIDTH_BASELINE = 0.095;
@@ -200,8 +242,9 @@ export class Poses {
         return this._faceNormal;
     }
     private _irisQuaternion: CloneableQuaternionList = [
-        new Quaternion(0, 0, 0, 0),
-        new Quaternion(0, 0, 0, 0),
+        new CloneableQuaternion(new Quaternion(0, 0, 0, 0)),
+        new CloneableQuaternion(new Quaternion(0, 0, 0, 0)),
+        new CloneableQuaternion(new Quaternion(0, 0, 0, 0)),
     ];
     get irisQuaternion(): CloneableQuaternionList {
         return this._irisQuaternion;
@@ -221,6 +264,30 @@ export class Poses {
     private _blinkAll: number = 1;
     get blinkAll(): number {
         return this._blinkAll;
+    }
+
+    // Calculated bone rotations
+    private _leftHandBoneRotations: HandBoneRotations = new HandBoneRotations();
+    get leftHandBoneRotations(): HandBoneRotations {
+        return this._leftHandBoneRotations;
+    }
+    private _leftHandNormals: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        3, () => {
+            return {x: 0, y:0, z: 0};
+        });
+    get leftHandNormals(): NormalizedLandmarkList {
+        return this._leftHandNormals;
+    }
+    private _rightHandBoneRotations: HandBoneRotations = new HandBoneRotations();
+    get rightHandBoneRotations(): HandBoneRotations {
+        return this._rightHandBoneRotations;
+    }
+    private _rightHandNormals: NormalizedLandmarkList = initArray<NormalizedLandmark>(
+        3, () => {
+            return {x: 0, y:0, z: 0};
+        });
+    get rightHandNormals(): NormalizedLandmarkList {
+        return this._rightHandNormals;
     }
 
     private midHipBase: Nullable<Vector3> = null;
@@ -251,6 +318,9 @@ export class Poses {
 
         // Calculate expressions
         this.calcExpressions();
+
+        // Calculate hand bones
+        this.calcHandBones();
 
         // Post processing
     }
@@ -402,14 +472,82 @@ export class Poses {
             leftIrisRotationYPR, rightIrisRotationYPR)));
     }
 
-    private static normalFromVertices(vertices: FilteredVectorLandmark3, reverse: boolean): Vector3 {
-        if (reverse)
-            vertices.reverse();
-        const vec = [];
-        for (let i = 0; i < 2; ++i) {
-            vec.push(vertices[i + 1].pos.subtract(vertices[i].pos));
+    private calcExpressions() {
+        if (!this.cloneableInputResults?.faceLandmarks) return;
+
+        const leftEyeWidth = this._keyPoints.left_eye_inner.pos.subtract(this._keyPoints.left_eye_outer.pos).length();
+        this._blinkLeft = 1 - remapRangeWithCap(
+            this._keyPoints.left_eye_top.pos
+                .subtract(this._keyPoints.left_eye_bottom.pos)
+                .length() * Poses.EYE_WIDTH_BASELINE / leftEyeWidth,
+            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
+            0, 1
+        );
+        const rightEyeWidth = this._keyPoints.right_eye_inner.pos.subtract(this._keyPoints.right_eye_outer.pos).length();
+        this._blinkRight = 1 - remapRangeWithCap(
+            this._keyPoints.right_eye_top.pos
+                .subtract(this._keyPoints.right_eye_bottom.pos)
+                .length() * Poses.EYE_WIDTH_BASELINE / rightEyeWidth,
+            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
+            0, 1
+        );
+        this._blinkAll = this.lRLink(this._blinkLeft, this._blinkRight);
+
+        const mouthWidth = this._keyPoints.mouth_left.pos.subtract(this._keyPoints.mouth_right.pos).length();
+        const mouthRange1 = remapRangeWithCap(
+            this._keyPoints.mouth_top_first.pos.subtract(this._keyPoints.mouth_bottom_first.pos)
+                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
+            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
+            0, 1
+        );
+        const mouthRange2 = remapRangeWithCap(
+            this._keyPoints.mouth_top_second.pos.subtract(this._keyPoints.mouth_bottom_second.pos)
+                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
+            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
+            0, 1
+        );
+        const mouthRange3 = remapRangeWithCap(
+            this._keyPoints.mouth_top_third.pos.subtract(this._keyPoints.mouth_bottom_third.pos)
+                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
+            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
+            0, 1
+        );
+        this._mouthMorph = (mouthRange1 + mouthRange2 + mouthRange3) / 3;
+    }
+
+    private calcHandBones() {
+        // Right hand shall have local x reversed?
+        const baseRootNormal = new Vector3(0, -1, 0);
+        const hands = {
+            left: this.leftHandLandmarks,
+            right: this.rightHandLandmarks,
         }
-        return vec[0].cross(vec[1]).normalize();
+
+        for (const [k, v] of Object.entries(hands)) {
+            const vertices: FilteredVectorLandmark3[] = [
+                [v[HAND_LANDMARKS.WRIST], v[HAND_LANDMARKS.PINKY_MCP], v[HAND_LANDMARKS.INDEX_FINGER_MCP]],
+                [v[HAND_LANDMARKS.WRIST], v[HAND_LANDMARKS.RING_FINGER_MCP], v[HAND_LANDMARKS.INDEX_FINGER_MCP]],
+                [v[HAND_LANDMARKS.WRIST], v[HAND_LANDMARKS.PINKY_MCP], v[HAND_LANDMARKS.MIDDLE_FINGER_MCP]],
+            ]
+
+            // Root normal
+            const reverse = k === 'left';
+            const handNormalsKey = `${k}HandNormals`;
+            const handNormals = this[handNormalsKey as PosesKeys] as unknown as NormalizedLandmarkList;
+            handNormals.length = 0;
+            const rootNormal = vertices.reduce((prev, curr) => {
+                const _normal = Poses.normalFromVertices(curr, reverse);
+                handNormals.push(vectorToNormalizedLandmark(_normal));
+                return prev.add(_normal);
+            }, Vector3.Zero()).normalize();
+            handNormals.push(vectorToNormalizedLandmark(rootNormal));
+
+            const handRotationKey = `${k}HandBoneRotations`;
+            (this[handRotationKey as PosesKeys] as unknown as HandBoneRotations).Hand.set(
+                quaternionBetweenVectors(baseRootNormal, rootNormal));
+            // if (k === 'right') console.log(degreeBetweenVectors(rootNormal, baseRootNormal));
+        }
+
     }
 
     private preProcessResults(dt: number) {
@@ -533,49 +671,6 @@ export class Poses {
         }
     }
 
-    private calcExpressions() {
-        if (!this.cloneableInputResults?.faceLandmarks) return;
-
-        const leftEyeWidth = this._keyPoints.left_eye_inner.pos.subtract(this._keyPoints.left_eye_outer.pos).length();
-        this._blinkLeft = 1 - remapRangeWithCap(
-            this._keyPoints.left_eye_top.pos
-                .subtract(this._keyPoints.left_eye_bottom.pos)
-                .length() * Poses.EYE_WIDTH_BASELINE / leftEyeWidth,
-            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
-            0, 1
-        );
-        const rightEyeWidth = this._keyPoints.right_eye_inner.pos.subtract(this._keyPoints.right_eye_outer.pos).length();
-        this._blinkRight = 1 - remapRangeWithCap(
-            this._keyPoints.right_eye_top.pos
-                .subtract(this._keyPoints.right_eye_bottom.pos)
-                .length() * Poses.EYE_WIDTH_BASELINE / rightEyeWidth,
-            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
-            0, 1
-        );
-        this._blinkAll = this.lRLink(this._blinkLeft, this._blinkRight);
-
-        const mouthWidth = this._keyPoints.mouth_left.pos.subtract(this._keyPoints.mouth_right.pos).length();
-        const mouthRange1 = remapRangeWithCap(
-            this._keyPoints.mouth_top_first.pos.subtract(this._keyPoints.mouth_bottom_first.pos)
-                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
-            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
-            0, 1
-        );
-        const mouthRange2 = remapRangeWithCap(
-            this._keyPoints.mouth_top_second.pos.subtract(this._keyPoints.mouth_bottom_second.pos)
-                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
-            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
-            0, 1
-        );
-        const mouthRange3 = remapRangeWithCap(
-            this._keyPoints.mouth_top_third.pos.subtract(this._keyPoints.mouth_bottom_third.pos)
-                .length() * Poses.MOUTH_WIDTH_BASELINE / mouthWidth,
-            Poses.MOUTH_MP_RANGE_LOW, Poses.MOUTH_MP_RANGE_HIGH,
-            0, 1
-        );
-        this._mouthMorph = (mouthRange1 + mouthRange2 + mouthRange3) / 3;
-    }
-
     private lRLinkWeights() {
         const faceCameraAngle = degreeBetweenVectors(
             normalizedLandmarkToVector(this.faceNormal), new Vector3(0, 0, -1));
@@ -607,6 +702,16 @@ export class Poses {
     private lRLinkQuaternion(l: Quaternion, r: Quaternion) {
         const {weightLeft, weightRight} = this.lRLinkWeights();
         return l.scale(weightLeft).addInPlace(r.scale(weightRight));
+    }
+
+    private static normalFromVertices(vertices: FilteredVectorLandmark3, reverse: boolean): Vector3 {
+        if (reverse)
+            vertices.reverse();
+        const vec = [];
+        for (let i = 0; i < 2; ++i) {
+            vec.push(vertices[i + 1].pos.subtract(vertices[i].pos));
+        }
+        return vec[0].cross(vec[1]).normalize();
     }
 }
 

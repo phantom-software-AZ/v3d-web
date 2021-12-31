@@ -111,6 +111,10 @@ export function onResults(
         const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
         const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
         const resultIrisQuaternions = await workerPose.irisQuaternion;
+        const resultLeftHandBoneRotations = await workerPose.leftHandBoneRotations;
+        const resultRightHandBoneRotations = await workerPose.rightHandBoneRotations;
+        const resultLeftHandNormals = await workerPose.leftHandNormals;
+        const resultRightHandNormals = await workerPose.rightHandNormals;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             debugInfo.updateFaceNormalArrows(
@@ -121,6 +125,10 @@ export function onResults(
             debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
             debugInfo.updateIrisQuaternionArrows(
                 resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
+            debugInfo.updateHandWristNormalArrows(
+                resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
+            debugInfo.updateHandNormalArrows(
+                resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
         }
 
         vrmManager.morphing('A', await workerPose.mouthMorph);
@@ -130,6 +138,10 @@ export function onResults(
 
         vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
         vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
+        // console.log(
+        //     vrmManager.humanoidBone.rightEye.getWorldMatrix(),
+        //     vrmManager.humanoidBone.rightEye.getWorldMatrix().getRotationMatrix(),
+        // );
         console.debug("Results processed!");
     });
 
