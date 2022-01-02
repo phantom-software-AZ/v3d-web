@@ -42,9 +42,14 @@ import {
 import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
-import {Vector3} from "@babylonjs/core";
+import {Angle, Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
-import {cloneableQuaternionToQuaternion, FrameMonitor, normalizedLandmarkToVector} from "./helper/utils";
+import {
+    cloneableQuaternionToQuaternion,
+    FrameMonitor,
+    HAND_LANDMARKS,
+    normalizedLandmarkToVector, quaternionBetweenVectors, remapDegreeWithCap
+} from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 
 const frameMonitor = new FrameMonitor();
@@ -138,6 +143,40 @@ export function onResults(
 
         vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
         vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
+        const leftWristQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.WRIST]);
+        const leftWristRotationAngles = (()=>{
+            const angles = leftWristQuaternion.toEulerAngles();
+            return new Vector3(
+                remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
+                remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
+                remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
+            );
+        })();
+        vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
+        vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        const rightWristQuaternion =  cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]);
+        const rightWristRotationAngles = (()=>{
+            const angles = rightWristQuaternion.toEulerAngles();
+            return new Vector3(
+                remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
+                remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
+                remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
+            );
+        })();
+        vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
+        vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
         // console.log(
         //     vrmManager.humanoidBone.rightEye.getWorldMatrix(),
         //     vrmManager.humanoidBone.rightEye.getWorldMatrix().getRotationMatrix(),

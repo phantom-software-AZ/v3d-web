@@ -19,14 +19,14 @@ import {Color3, Vector4} from "@babylonjs/core/Maths";
 import {
     Arrow3D,
     cloneableQuaternionToQuaternion,
-    HAND_LANDMARK_LENGTH,
+    HAND_LANDMARK_LENGTH, HAND_LANDMARKS,
     initArray,
     normalizedLandmarkToVector,
     POSE_LANDMARK_LENGTH
 } from "./utils";
 import chroma from "chroma-js";
 import {NormalizedLandmark, NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
-import {CloneableQuaternion, CloneableQuaternionList, HandBoneRotations} from "../worker/pose-processing";
+import {CloneableQuaternion, CloneableQuaternionList, Poses} from "../worker/pose-processing";
 
 type createSphereOptions = {
     segments?: number;
@@ -246,22 +246,21 @@ export class DebugInfo {
     }
 
     public updateHandWristNormalArrows(
-        resultLeftHandBoneRotations: HandBoneRotations,
-        resultRightHandBoneRotations: HandBoneRotations,
+        resultLeftHandBoneRotations: CloneableQuaternionList,
+        resultRightHandBoneRotations: CloneableQuaternionList,
         resultPoseLandmarks: NormalizedLandmarkList
     ) {
-        const baseRootNormal = new Vector3(0, -1, 0);
         this.leftHandNormalArrow.updateStartAndDirection(
             normalizedLandmarkToVector(
                 resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
             quaternionToDirectionVector(
-                baseRootNormal, resultLeftHandBoneRotations.Hand),
+                Poses.HAND_BASE_ROOT_NORMAL, resultLeftHandBoneRotations[HAND_LANDMARKS.WRIST]),
         );
         this.rightHandNormalArrow.updateStartAndDirection(
             normalizedLandmarkToVector(
                 resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
             quaternionToDirectionVector(
-                baseRootNormal, resultRightHandBoneRotations.Hand),
+                Poses.HAND_BASE_ROOT_NORMAL, resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]),
         );
     }
 

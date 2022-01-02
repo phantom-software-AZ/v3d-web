@@ -90,7 +90,9 @@ window.addEventListener('load', async (e) => {
     console.log("Onload");
 
     // v3d
-    const vrmManager = await createScene(engine);
+    const vrmManager = await createScene(
+        engine,
+        workerPose);
 
     // MediaPipe
     const holistic = new Holistic();

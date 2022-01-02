@@ -14,7 +14,7 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Angle, Mesh, MeshBuilder, Nullable, PrecisionDate, Quaternion, Scene, Vector3} from "@babylonjs/core";
+import {Angle, Matrix, Mesh, MeshBuilder, Nullable, PrecisionDate, Quaternion, Scene, Vector3} from "@babylonjs/core";
 import {NormalizedLandmark} from "@mediapipe/holistic";
 import {CloneableQuaternion} from "../worker/pose-processing";
 
@@ -174,9 +174,13 @@ export class GaussianVectorFilter {
     public apply() {
         if (this.values.length !== this.size) return Vector3.Zero();
         const ret = this.values[0].clone();
+        const len0 = ret.length();
         for (let i = 0; i < this.size; ++i) {
             ret.addInPlace(this.values[i].scale(this.kernel[i]));
         }
+        const len1 = ret.length();
+        // Normalize to original length
+        ret.scaleInPlace(len0 / len1);
 
         return ret;
     }
@@ -426,6 +430,28 @@ export const HAND_LANDMARKS = {
     PINKY_DIP: 19,
     PINKY_TIP: 20,
 };
+export const HAND_BONE_NODES = [
+    "Hand",
+    "ThumbProximal",
+    "ThumbIntermediate",
+    "ThumbDistal",
+    "Hand",
+    "IndexProximal",
+    "IndexIntermediate",
+    "IndexDistal",
+    "Hand",
+    "MiddleProximal",
+    "MiddleIntermediate",
+    "MiddleDistal",
+    "Hand",
+    "RingProximal",
+    "RingIntermediate",
+    "RingDistal",
+    "Hand",
+    "LittleProximal",
+    "LittleIntermediate",
+    "LittleDistal",
+]
 
 export const rangeCap = (
     v: number,
@@ -459,6 +485,9 @@ export const remapRangeWithCap = (
     return dst_low + (v1 - src_low) * (dst_high - dst_low) / (src_high - src_low);
 };
 
+export interface NodeWorldMatrixMap {
+    [name: string] : Matrix
+}
 // Same as three.js Quaternion.setFromUnitVectors
 export const quaternionBetweenVectors = (
     v1: Vector3, v2: Vector3
@@ -472,15 +501,18 @@ export const remapDegreeWithCap = (deg: number) => {
     deg = rangeCap(deg, 0, 360);
     return deg < 180 ? deg : deg - 360;
 }
-export const degreeBetweenVectors = (
-    v1: Vector3, v2: Vector3
-) => {
-    const angles = quaternionBetweenVectors(v1, v2).toEulerAngles();
+export const quaternionToDegrees = (q: Quaternion) => {
+    const angles = q.toEulerAngles();
     return new Vector3(
         remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
         remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
         remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
     );
+};
+export const degreeBetweenVectors = (
+    v1: Vector3, v2: Vector3
+) => {
+    return quaternionToDegrees(quaternionBetweenVectors(v1, v2));
 };
 
 export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];

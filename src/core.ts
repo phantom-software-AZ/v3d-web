@@ -15,7 +15,7 @@ Copyright (C) 2021  The v3d Authors.
  */
 
 import {V3DCore} from "v3d-core/dist/src";
-import {ArcRotateCamera, Mesh, Nullable, Quaternion, Scene} from "@babylonjs/core";
+import {ArcRotateCamera, Nullable, Quaternion, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
 import {DebugInfo} from "./helper/debug";
@@ -24,11 +24,17 @@ import {DebugInfo} from "./helper/debug";
 import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
+import * as Comlink from "comlink";
+import {Poses} from "./worker/pose-processing";
+import {TransformNodeMap} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
+import {NodeWorldMatrixMap} from "./helper/utils";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
 // Can only have one VRM model at this time
-export async function createScene(engine: Engine) {
+export async function createScene(
+    engine: Engine,
+    workerPose: Comlink.Remote<Poses>) {
     const vrmFile = 'testfiles/2078913627571329107.vrm';
 
     // Create v3d core
@@ -55,11 +61,14 @@ export async function createScene(engine: Engine) {
     // Render loop
     engine.runRenderLoop(() => {
         v3DCore.scene?.render();
+        workerPose.bindHumanoidWorldMatrix(
+            constructBoneQuaternionMap(vrmManager.humanoidBone.nodeMap));
     });
 
     // Model Transformation
     vrmManager.rootMesh.translate(new Vector3(1, 0, 0), 1);
-    vrmManager.rootMesh.rotation = new Vector3(0, 135, 0);
+    vrmManager.rootMesh.rotationQuaternion = Quaternion.RotationYawPitchRoll(0, 0, 0);
+    // vrmManager.rootMesh.rotation = new Vector3(0, 135, 0);
 
     // Work with HumanoidBone
     vrmManager.humanoidBone.leftUpperArm.addRotation(0, -0.5, 0);
@@ -77,4 +86,14 @@ export async function createScene(engine: Engine) {
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
 
     return vrmManager;
+}
+
+export const constructBoneQuaternionMap = (
+    nodeMap: TransformNodeMap
+) => {
+    const retMap: NodeWorldMatrixMap = {};
+    for (const [k, v] of Object.entries(nodeMap)) {
+        retMap[k] = v.getWorldMatrix();
+    }
+    return retMap;
 }
