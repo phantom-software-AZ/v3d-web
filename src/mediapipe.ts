@@ -48,7 +48,7 @@ import {
     cloneableQuaternionToQuaternion,
     FrameMonitor,
     HAND_LANDMARKS,
-    normalizedLandmarkToVector, quaternionBetweenVectors, remapDegreeWithCap
+    remapDegreeWithCap
 } from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 
@@ -130,10 +130,10 @@ export function onResults(
             debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
             debugInfo.updateIrisQuaternionArrows(
                 resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
-            debugInfo.updateHandWristNormalArrows(
-                resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
+            // debugInfo.updateHandWristNormalArrows(
+            //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             debugInfo.updateHandNormalArrows(
-                resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
+                resultLeftHandNormals, null, resultPoseLandmarks);
         }
 
         vrmManager.morphing('A', await workerPose.mouthMorph);
@@ -154,12 +154,12 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
-        vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        // vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        // vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        // vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
         const rightWristQuaternion =  cloneableQuaternionToQuaternion(
             resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]);
         const rightWristRotationAngles = (()=>{
@@ -171,17 +171,17 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
-        vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        // vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        // vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        // vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
         // console.log(
         //     vrmManager.humanoidBone.rightEye.getWorldMatrix(),
         //     vrmManager.humanoidBone.rightEye.getWorldMatrix().getRotationMatrix(),
         // );
-        console.debug("Results processed!");
+        // console.debug("Results processed!");
     });
 
     // Remove landmarks we don't want to draw.

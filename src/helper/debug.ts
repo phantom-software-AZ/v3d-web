@@ -102,8 +102,8 @@ export class DebugInfo {
             0.02, 32, 0.06, 0.06,
             0.5, Vector3.Zero(), Vector3.One());
 
-        this.leftHandNormalArrows = this.initNormalArrows(4);
-        this.rightHandNormalArrows = this.initNormalArrows(4);
+        this.leftHandNormalArrows = this.initNormalArrows(6);
+        this.rightHandNormalArrows = this.initNormalArrows(6);
 
         scene.debugLayer.show({
             globalRoot: document.getElementById('wrapper') as HTMLElement,
@@ -124,11 +124,13 @@ export class DebugInfo {
     }
 
     private initNormalArrows(length: number) {
+        const colors = chroma.scale('Spectral')
+            .colors(length / 2, 'hex');
         return initArray<Arrow3D>(
             length,    // Temp magical number
-            () => new Arrow3D(this.scene,
+            (i) => new Arrow3D(this.scene,
                 0.02, 32, 0.08, 0.08,
-                0.5, Vector3.Zero(), Vector3.One()));
+                0.5, Vector3.Zero(), Vector3.One(), colors[i % (length / 2)]));
     }
 
     private initIrisNormalArrows() {
@@ -265,25 +267,27 @@ export class DebugInfo {
     }
 
     public updateHandNormalArrows(
-        resultLeftHandNormals: NormalizedLandmarkList,
-        resultRightHandNormals: NormalizedLandmarkList,
+        resultLeftHandNormals: Nullable<NormalizedLandmarkList>,
+        resultRightHandNormals: Nullable<NormalizedLandmarkList>,
         resultPoseLandmarks: NormalizedLandmarkList
     ) {
-        if (resultLeftHandNormals.length !== this.leftHandNormalArrows.length
-            || resultRightHandNormals.length !== this.rightHandNormalArrows.length) return;
-        for (let i = 0; i < this.leftHandNormalArrows.length; ++i) {
-            this.leftHandNormalArrows[i].updateStartAndDirection(
-                normalizedLandmarkToVector(
-                    resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
-                normalizedLandmarkToVector(resultLeftHandNormals[i]),
-            );
+        if (resultLeftHandNormals) {
+            for (let i = 0; i < this.leftHandNormalArrows.length; ++i) {
+                this.leftHandNormalArrows[i].updateStartAndDirection(
+                    normalizedLandmarkToVector(
+                        resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
+                    normalizedLandmarkToVector(resultLeftHandNormals[i]),
+                );
+            }
         }
-        for (let i = 0; i < this.rightHandNormalArrows.length; ++i) {
-            this.rightHandNormalArrows[i].updateStartAndDirection(
-                normalizedLandmarkToVector(
-                    resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
-                normalizedLandmarkToVector(resultRightHandNormals[i]),
-            );
+        if (resultRightHandNormals) {
+            for (let i = 0; i < this.rightHandNormalArrows.length; ++i) {
+                this.rightHandNormalArrows[i].updateStartAndDirection(
+                    normalizedLandmarkToVector(
+                        resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
+                    normalizedLandmarkToVector(resultRightHandNormals[i]),
+                );
+            }
         }
     }
 

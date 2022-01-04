@@ -27,7 +27,7 @@ import "@babylonjs/inspector";
 import * as Comlink from "comlink";
 import {Poses} from "./worker/pose-processing";
 import {TransformNodeMap} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
-import {NodeWorldMatrixMap} from "./helper/utils";
+import {DegToRad, NodeWorldMatrixMap, RadToDeg} from "./helper/utils";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
@@ -81,6 +81,10 @@ export async function createScene(
     window['vrmManager'] = vrmManager;
     // @ts-ignore
     vrmManager.r = Quaternion.RotationYawPitchRoll;
+    // @ts-ignore
+    vrmManager.rtd = RadToDeg;
+    // @ts-ignore
+    vrmManager.dtr = DegToRad;
 
     // Debug
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);

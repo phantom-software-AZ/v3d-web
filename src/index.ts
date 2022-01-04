@@ -31,6 +31,7 @@ import {Holistic, Results} from "@mediapipe/holistic";
 import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
+import {test_getBasis, test_quaternionBetweenBases3} from "./helper/utils";
 
 
 /*
@@ -88,6 +89,8 @@ spinner.ontransitionend = () => {
 
 window.addEventListener('load', async (e) => {
     console.log("Onload");
+    test_quaternionBetweenBases3();
+    test_getBasis();
 
     // v3d
     const vrmManager = await createScene(

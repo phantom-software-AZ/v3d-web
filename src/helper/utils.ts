@@ -14,7 +14,20 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Angle, Matrix, Mesh, MeshBuilder, Nullable, PrecisionDate, Quaternion, Scene, Vector3} from "@babylonjs/core";
+import {
+    Angle,
+    StandardMaterial,
+    Color3,
+    Matrix,
+    Mesh,
+    MeshBuilder,
+    Nullable,
+    Plane,
+    PrecisionDate,
+    Quaternion,
+    Scene,
+    Vector3
+} from "@babylonjs/core";
 import {NormalizedLandmark} from "@mediapipe/holistic";
 import {CloneableQuaternion} from "../worker/pose-processing";
 
@@ -290,6 +303,10 @@ export class Arrow3D {
         this._arrowHeadLength = value;
         this.updatePath();
     }
+    private _material: StandardMaterial;
+    get material(): StandardMaterial {
+        return this._material;
+    }
 
     constructor(
         private scene: Scene,
@@ -300,6 +317,7 @@ export class Arrow3D {
         arrowLength = 10,
         arrowStart: Vector3,
         arrowDirection: Vector3,
+        color?: number | string,
     ) {
         this._arrowRadius = arrowRadius;
         this._n = n;
@@ -310,6 +328,11 @@ export class Arrow3D {
         this._arrowDirection = arrowDirection;
         this.updateTopShape();
         this.updatePath();
+        this._material = new StandardMaterial("sphereMaterial", scene);
+        if (color) {
+            if (typeof color === 'number') color = `#${color.toString(16)}`;
+            this._material.diffuseColor = Color3.FromHexString(color);
+        }
     }
 
     private updateTopShape() {
@@ -353,6 +376,7 @@ export class Arrow3D {
                     path: this.myPath,
                     scaleFunction: this.scaling.bind(this),
                     instance: this.arrowInstance}, this.scene);
+        this.arrowInstance.material = this.material;
     }
 
     private scaling(index: number, distance: number): number {
@@ -488,12 +512,20 @@ export const remapRangeWithCap = (
 export interface NodeWorldMatrixMap {
     [name: string] : Matrix
 }
+export const RadToDeg = (r: number) => {
+    return Angle.FromRadians(r).degrees();
+}
+export const DegToRad = (d: number) => {
+    return Angle.FromDegrees(d).radians();
+}
 // Same as three.js Quaternion.setFromUnitVectors
 export const quaternionBetweenVectors = (
-    v1: Vector3, v2: Vector3
+    v1: Vector3, v2: Vector3,
+    reverseAngle = false,
+    reverseAxis = false,
 ): Quaternion => {
-    const angle = Math.acos(Vector3.Dot(v1, v2));
-    const axis = Vector3.Cross(v1,v2);
+    const angle = reverseAngle ? -Math.acos(Vector3.Dot(v1, v2)) : Math.acos(Vector3.Dot(v1, v2));
+    const axis = reverseAxis ? Vector3.Cross(v2,v1) : Vector3.Cross(v1,v2);
     return Quaternion.RotationAxis(axis, angle);
 };
 // From -180 to 180
@@ -501,19 +533,66 @@ export const remapDegreeWithCap = (deg: number) => {
     deg = rangeCap(deg, 0, 360);
     return deg < 180 ? deg : deg - 360;
 }
-export const quaternionToDegrees = (q: Quaternion) => {
+export const quaternionToDegrees = (
+    q: Quaternion,
+    remapDegree=false,
+) => {
     const angles = q.toEulerAngles();
+    const remapFn = remapDegree ? remapDegreeWithCap : (x: number) => x;
     return new Vector3(
-        remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
-        remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
-        remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
+        remapFn(RadToDeg(angles.x)),
+        remapFn(RadToDeg(angles.y)),
+        remapFn(RadToDeg(angles.z)),
     );
 };
 export const degreeBetweenVectors = (
-    v1: Vector3, v2: Vector3
+    v1: Vector3, v2: Vector3, remapDegree=false
 ) => {
-    return quaternionToDegrees(quaternionBetweenVectors(v1, v2));
+    return quaternionToDegrees(quaternionBetweenVectors(v1, v2), remapDegree);
 };
+export enum AXIS {
+    x,
+    y,
+    z,
+    xy,
+    yz,
+    xz,
+    xyz
+}
+export const reverseRotation = (q: Quaternion, axis: AXIS) => {
+    const angles = q.toEulerAngles();
+    switch (axis) {
+        case AXIS.x:
+            angles.x = -angles.x;
+            break;
+        case AXIS.y:
+            angles.y = -angles.y;
+            break;
+        case AXIS.z:
+            angles.z = -angles.z;
+            break;
+        case AXIS.xy:
+            angles.x = -angles.x;
+            angles.y = -angles.y;
+            break;
+        case AXIS.yz:
+            angles.y = -angles.y;
+            angles.z = -angles.z;
+            break;
+        case AXIS.xz:
+            angles.x = -angles.x;
+            angles.z = -angles.z;
+            break;
+        case AXIS.xyz:
+            angles.x = -angles.x;
+            angles.y = -angles.y;
+            angles.z = -angles.z;
+            break;
+        default:
+            throw Error("Unknown axis!");
+    }
+    return Quaternion.RotationYawPitchRoll(angles.y, angles.x, angles.z);
+}
 
 export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
 
@@ -526,3 +605,166 @@ export type ReadonlyKeys<T> = {
     [P in keyof T]-?: IfEquals<{ [Q in P]: T[P] }, { -readonly [Q in P]: T[P] }, never, P>}[keyof T];
 
 // type ReadonlyKeysOfA = ReadonlyKeys<A>;
+
+// Calculate 3D rotations
+export type Vector33 = [Vector3, Vector3, Vector3];
+
+/*
+ * Calculate rotation between two local coordinate systems.
+ * Each object is defined by 3 points. Assume 1st is origin, 2nd points +x.
+ */
+export function quaternionBetweenObj(
+    obj1: Vector33,
+    obj2: Vector33
+) {
+    const [axisX1, axisY1, axisZ1, basis1] = getBasis(obj1);
+    const [axisX2, axisY2, axisZ2, basis2] = getBasis(obj2);
+
+    const quaternion = quaternionBetweenBases(basis1 as Matrix, basis2 as Matrix);
+    return [
+        quaternion,
+        axisX1, axisY1, axisZ1,
+        axisX2, axisY2, axisZ2
+    ];
+}
+
+export function printQuaternion(q: Quaternion) {
+    console.log(vectorToNormalizedLandmark(quaternionToDegrees(q, true)));
+}
+
+export function quaternionBetweenBases(basis1: Matrix, basis2: Matrix) {
+    const rotationBasis1 = Quaternion.FromRotationMatrix(basis1);
+    const rotationBasis2 = Quaternion.FromRotationMatrix(basis2);
+
+    const quaternion31 = rotationBasis1.clone();
+    const quaternion31R = Quaternion.Inverse(quaternion31);
+    const quaternion32 = rotationBasis2.clone();
+    const quaternion3 = quaternion32.multiply(quaternion31R);
+    return quaternion3;
+}
+
+export function test_quaternionBetweenBases3() {
+    // @ts-ignore
+    window['printQuaternion'] = printQuaternion;
+    const remap = false;
+    const axes0: Vector33 = [
+        new Vector3(1, 0, 0),
+        new Vector3(0, 1, 0),
+        new Vector3(0, 0, 1)
+    ];
+    const basis0 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes0[0], axes0[1], axes0[2], basis0);
+
+    // X 90
+    const axes1: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes1.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.RotationYawPitchRoll(0, DegToRad(90), 0), v);
+    });
+    const basis1 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes1[0], axes1[1], axes1[2], basis1);
+    const degrees1 = quaternionToDegrees(quaternionBetweenBases(basis0, basis1), remap);
+    console.log(vectorToNormalizedLandmark(degrees1));
+
+    axes0[0].copyFrom(axes1[0]);
+    axes0[1].copyFrom(axes1[1]);
+    axes0[2].copyFrom(axes1[2]);
+    Matrix.FromXYZAxesToRef(axes0[0], axes0[1], axes0[2], basis0);
+
+    // Y 90
+    const axes2: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes2.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.RotationYawPitchRoll(DegToRad(90), 0, 0), v);
+    });
+    const basis2 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes2[0], axes2[1], axes2[2], basis2);
+    const degrees2 = quaternionToDegrees(quaternionBetweenBases(basis0, basis2), remap);
+    console.log(vectorToNormalizedLandmark(degrees2));
+
+    // Z 90
+    const axes3: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes3.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.RotationYawPitchRoll(0, 0, DegToRad(90)), v);
+    });
+    const basis3 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes3[0], axes3[1], axes3[2], basis3);
+    const degrees3 = quaternionToDegrees(quaternionBetweenBases(basis0, basis3), remap);
+    console.log(vectorToNormalizedLandmark(degrees3));
+
+    // X Y 135
+    const axes4: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    const a1 = Quaternion.RotationYawPitchRoll(DegToRad(135), DegToRad(135), 0);
+    const a2 = Quaternion.FromEulerAngles(DegToRad(135), DegToRad(135), 0);
+    const a3 = Quaternion.FromEulerAngles(DegToRad(30), DegToRad(305), DegToRad(145));
+    axes4.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            a1, v);
+    });
+    const basis4 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes4[0], axes4[1], axes4[2], basis4);
+    const degrees4 = quaternionToDegrees(Quaternion.Inverse(quaternionBetweenBases(basis0, basis4)), remap);
+    console.log(vectorToNormalizedLandmark(degrees4));
+
+    // X Z 90
+    const axes5: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes5.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.FromEulerAngles(DegToRad(90), 0, DegToRad(90)), v);
+    });
+    const basis5 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes5[0], axes5[1], axes5[2], basis5);
+    const degrees5 = quaternionToDegrees(quaternionBetweenBases(basis0, basis5), remap);
+    console.log(vectorToNormalizedLandmark(degrees5));
+
+    // Y Z 45
+    const axes6: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes6.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.RotationYawPitchRoll(DegToRad(45),0, DegToRad(45)), v);
+    });
+    const basis6 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes6[0], axes6[1], axes6[2], basis6);
+    const degrees6 = quaternionToDegrees(quaternionBetweenBases(basis0, basis6), remap);
+    console.log(vectorToNormalizedLandmark(degrees6));
+
+    // X Y Z 135
+    const axes7: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
+    axes7.forEach((v, i) => {
+        axes0[i].rotateByQuaternionToRef(
+            Quaternion.RotationYawPitchRoll(DegToRad(135),DegToRad(135), DegToRad(135)), v);
+    });
+    const basis7 = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axes7[0], axes7[1], axes7[2], basis7);
+    const degrees7 = quaternionToDegrees(quaternionBetweenBases(basis0, basis7), remap);
+    console.log(vectorToNormalizedLandmark(degrees7));
+}
+
+export function test_getBasis() {
+    const axes0: Vector33 = [
+        new Vector3(0, 0, 0),
+        new Vector3(2, 0, 0),
+        new Vector3(1, 1, 0)
+    ];
+    const [axisX, axisY, axisZ, basis] = getBasis(axes0);
+    console.log(vectorToNormalizedLandmark(axisX as Vector3));
+    console.log(vectorToNormalizedLandmark(axisY as Vector3));
+    console.log(vectorToNormalizedLandmark(axisZ as Vector3));
+}
+
+// Left handed for BJS
+export function getBasis(obj: Vector33) {
+    const [a, b, c] = obj;
+    const planeXY = Plane.FromPoints(a, b, c).normalize();
+    const axisX = b.subtract(a).normalize();
+    const axisZ = planeXY.normal;
+    // Project c onto ab
+    const cp = a.add(
+        axisX.scale(Vector3.Dot(c.subtract(a), axisX) / Vector3.Dot(axisX, axisX))
+    );
+    const axisY = c.subtract(cp);
+    const basis = Matrix.Identity();
+    Matrix.FromXYZAxesToRef(axisX, axisY, axisZ, basis);
+    return [axisX, axisY, axisZ, basis];
+}
