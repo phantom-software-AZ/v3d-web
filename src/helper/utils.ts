@@ -210,7 +210,6 @@ export class EuclideanHighPassFilter {
     ) {}
 
     public update(v: Vector3) {
-        // console.log(this.value.subtract(v).length());
         if (this.value.subtract(v).length() > this.threshold) {
             this._value = v;
         }
@@ -264,11 +263,11 @@ export class Arrow3D {
     }
 
     private _arrowHeadLength: number;
-    get arrowDirection(): Vector3 {
-        return this._arrowDirection;
+    get arrowHeadLength(): number {
+        return this._arrowHeadLength;
     }
-    set arrowDirection(value: Vector3) {
-        this._arrowDirection = value;
+    set arrowHeadLength(value: number) {
+        this._arrowHeadLength = value;
         this.updatePath();
     }
     private _arrowHeadMaxSize: number;
@@ -296,11 +295,11 @@ export class Arrow3D {
         this.updatePath();
     }
     private _arrowDirection: Vector3;
-    get arrowHeadLength(): number {
-        return this._arrowHeadLength;
+    get arrowDirection(): Vector3 {
+        return this._arrowDirection;
     }
-    set arrowHeadLength(value: number) {
-        this._arrowHeadLength = value;
+    set arrowDirection(value: Vector3) {
+        this._arrowDirection = value;
         this.updatePath();
     }
     private _material: StandardMaterial;
@@ -591,7 +590,7 @@ export const reverseRotation = (q: Quaternion, axis: AXIS) => {
         default:
             throw Error("Unknown axis!");
     }
-    return Quaternion.RotationYawPitchRoll(angles.y, angles.x, angles.z);
+    return Quaternion.RotationYawPitchRoll(angles.y, angles.x, angles.z).normalize();
 }
 
 export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
@@ -611,25 +610,24 @@ export type Vector33 = [Vector3, Vector3, Vector3];
 
 /*
  * Calculate rotation between two local coordinate systems.
- * Each object is defined by 3 points. Assume 1st is origin, 2nd points +x.
+ * Each object is defined by 3 points.
+ * Assume a is origin, b points to +x, abc forms XY plane.
  */
 export function quaternionBetweenObj(
     obj1: Vector33,
     obj2: Vector33
-) {
-    const [axisX1, axisY1, axisZ1, basis1] = getBasis(obj1);
-    const [axisX2, axisY2, axisZ2, basis2] = getBasis(obj2);
+): Quaternion {
+    const axes1 = getAxes(obj1);
+    const basis1 = axesToBasis(axes1);
+    const axes2 = getAxes(obj2);
+    const basis2 = axesToBasis(axes2);
 
-    const quaternion = quaternionBetweenBases(basis1 as Matrix, basis2 as Matrix);
-    return [
-        quaternion,
-        axisX1, axisY1, axisZ1,
-        axisX2, axisY2, axisZ2
-    ];
+    const quaternion = quaternionBetweenBases(basis1, basis2);
+    return quaternion;
 }
 
-export function printQuaternion(q: Quaternion) {
-    console.log(vectorToNormalizedLandmark(quaternionToDegrees(q, true)));
+export function printQuaternion(q: Quaternion, s?: string) {
+    console.log(s, vectorToNormalizedLandmark(quaternionToDegrees(q, true)));
 }
 
 export function quaternionBetweenBases(basis1: Matrix, basis2: Matrix) {
@@ -644,8 +642,6 @@ export function quaternionBetweenBases(basis1: Matrix, basis2: Matrix) {
 }
 
 export function test_quaternionBetweenBases3() {
-    // @ts-ignore
-    window['printQuaternion'] = printQuaternion;
     const remap = false;
     const axes0: Vector33 = [
         new Vector3(1, 0, 0),
@@ -665,11 +661,6 @@ export function test_quaternionBetweenBases3() {
     Matrix.FromXYZAxesToRef(axes1[0], axes1[1], axes1[2], basis1);
     const degrees1 = quaternionToDegrees(quaternionBetweenBases(basis0, basis1), remap);
     console.log(vectorToNormalizedLandmark(degrees1));
-
-    axes0[0].copyFrom(axes1[0]);
-    axes0[1].copyFrom(axes1[1]);
-    axes0[2].copyFrom(axes1[2]);
-    Matrix.FromXYZAxesToRef(axes0[0], axes0[1], axes0[2], basis0);
 
     // Y 90
     const axes2: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
@@ -747,14 +738,14 @@ export function test_getBasis() {
         new Vector3(2, 0, 0),
         new Vector3(1, 1, 0)
     ];
-    const [axisX, axisY, axisZ, basis] = getBasis(axes0);
-    console.log(vectorToNormalizedLandmark(axisX as Vector3));
-    console.log(vectorToNormalizedLandmark(axisY as Vector3));
-    console.log(vectorToNormalizedLandmark(axisZ as Vector3));
+    const axes = getAxes(axes0);
+    console.log(vectorToNormalizedLandmark(axes[0]));
+    console.log(vectorToNormalizedLandmark(axes[1]));
+    console.log(vectorToNormalizedLandmark(axes[2]));
 }
 
 // Left handed for BJS
-export function getBasis(obj: Vector33) {
+export function getAxes(obj: Vector33): Vector33 {
     const [a, b, c] = obj;
     const planeXY = Plane.FromPoints(a, b, c).normalize();
     const axisX = b.subtract(a).normalize();
@@ -763,8 +754,25 @@ export function getBasis(obj: Vector33) {
     const cp = a.add(
         axisX.scale(Vector3.Dot(c.subtract(a), axisX) / Vector3.Dot(axisX, axisX))
     );
-    const axisY = c.subtract(cp);
+    const axisY = c.subtract(cp).normalize();
+    return [axisX, axisY, axisZ];
+}
+export const axesToBasis = (axes: Vector33): Matrix => {
     const basis = Matrix.Identity();
-    Matrix.FromXYZAxesToRef(axisX, axisY, axisZ, basis);
-    return [axisX, axisY, axisZ, basis];
+    Matrix.FromXYZAxesToRef(axes[0], axes[1], axes[2], basis);
+    return basis;
+}
+
+// Project points to an average plane
+export function calcAvgPlane(pts: Vector3[], normal: Vector3): Vector3[] {
+    if (pts.length === 0) return [Vector3.Zero()];
+    const avgPt = pts.reduce((prev, curr) => {
+        return prev.add(curr);
+    }).scale(1 / pts.length);
+
+    const ret = pts.map((v) => {
+        return v.subtract(normal.scale(Vector3.Dot(normal, v.subtract(avgPt))))
+    });
+
+    return ret;
 }

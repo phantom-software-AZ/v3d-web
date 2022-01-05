@@ -129,8 +129,8 @@ export class DebugInfo {
         return initArray<Arrow3D>(
             length,    // Temp magical number
             (i) => new Arrow3D(this.scene,
-                0.02, 32, 0.08, 0.08,
-                0.5, Vector3.Zero(), Vector3.One(), colors[i % (length / 2)]));
+                0.01, 32, 0.02, 0.02,
+                0.2, Vector3.Zero(), Vector3.One(), colors[i % (length / 2)]));
     }
 
     private initIrisNormalArrows() {
@@ -161,6 +161,7 @@ export class DebugInfo {
     public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
         if (resultPoseLandmarks.length !== POSE_LANDMARK_LENGTH) return;
         for (let i = 0; i < POSE_LANDMARK_LENGTH; ++i) {
+            if (i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20, 21, 22]) continue;
             this.poseLandmarkSpheres[i].position.set(
                 resultPoseLandmarks[i].x,
                 resultPoseLandmarks[i].y,

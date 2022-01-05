@@ -133,7 +133,7 @@ export function onResults(
             // debugInfo.updateHandWristNormalArrows(
             //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             debugInfo.updateHandNormalArrows(
-                resultLeftHandNormals, null, resultPoseLandmarks);
+                null, resultRightHandNormals, resultPoseLandmarks);
         }
 
         vrmManager.morphing('A', await workerPose.mouthMorph);
@@ -177,10 +177,7 @@ export function onResults(
         //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
         // vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
         //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
-        // console.log(
-        //     vrmManager.humanoidBone.rightEye.getWorldMatrix(),
-        //     vrmManager.humanoidBone.rightEye.getWorldMatrix().getRotationMatrix(),
-        // );
+
         // console.debug("Results processed!");
     });
 

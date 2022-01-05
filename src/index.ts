@@ -31,7 +31,6 @@ import {Holistic, Results} from "@mediapipe/holistic";
 import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
-import {test_getBasis, test_quaternionBetweenBases3} from "./helper/utils";
 
 
 /*
@@ -53,16 +52,6 @@ const videoCanvasCtx = videoCanvasElement.getContext('2d')!;
 const poseProcessingWorker = new Worker(new URL("./worker/pose-processing.ts", import.meta.url),
     {type: 'module'});
 const workerPose = Comlink.wrap<Poses>(poseProcessingWorker);
-// async function workerInit() {
-//     // WebWorkers use `postMessage` and therefore work with Comlink.
-//     // workerTestObj = await exposedObj.obj;
-//     alert(`Counter: ${workerPose.counter}`);
-//     await workerPose.inc(3);
-//     await workerPose.spin();
-//     alert(`Counter: ${workerPose.counter}`);
-// }
-//
-// workerInit();
 
 /*
  * Babylonjs
@@ -89,8 +78,6 @@ spinner.ontransitionend = () => {
 
 window.addEventListener('load', async (e) => {
     console.log("Onload");
-    test_quaternionBetweenBases3();
-    test_getBasis();
 
     // v3d
     const vrmManager = await createScene(
