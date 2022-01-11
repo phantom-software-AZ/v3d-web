@@ -154,12 +154,12 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
-        // vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        // vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        // vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
         const rightWristQuaternion =  cloneableQuaternionToQuaternion(
             resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]);
         const rightWristRotationAngles = (()=>{
@@ -171,12 +171,12 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
-        // vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        // vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        // vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
 
         // console.debug("Results processed!");
     });

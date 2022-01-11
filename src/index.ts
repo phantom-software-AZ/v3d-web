@@ -31,6 +31,14 @@ import {Holistic, Results} from "@mediapipe/holistic";
 import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
+import {
+    DegToRad, quaternionToDegrees,
+    RadToDeg, test_calcSphericalCoord,
+    test_getBasis,
+    test_quaternionBetweenBases3,
+    test_quaternionBetweenVectors
+} from "./helper/utils";
+import {Vector3} from "@babylonjs/core";
 
 
 /*
@@ -78,6 +86,18 @@ spinner.ontransitionend = () => {
 
 window.addEventListener('load', async (e) => {
     console.log("Onload");
+    // @ts-ignore
+    window.r = quaternionToDegrees;
+    // @ts-ignore
+    window.rtd = RadToDeg;
+    // @ts-ignore
+    window.dtr = DegToRad;
+    test_quaternionBetweenBases3();
+    test_getBasis();
+    test_quaternionBetweenVectors();
+    test_calcSphericalCoord();
+    test_calcSphericalCoord(new Vector3(
+        DegToRad(45), DegToRad(135), DegToRad(90)));
 
     // v3d
     const vrmManager = await createScene(

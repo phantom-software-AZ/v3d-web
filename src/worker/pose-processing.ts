@@ -16,35 +16,42 @@ Copyright (C) 2021  The v3d Authors.
 
 import * as Comlink from "comlink"
 import {
-    FACEMESH_LEFT_EYE, FACEMESH_LEFT_EYEBROW, FACEMESH_LEFT_IRIS, FACEMESH_LIPS,
-    FACEMESH_RIGHT_EYE, FACEMESH_RIGHT_EYEBROW, FACEMESH_RIGHT_IRIS,
+    FACEMESH_LEFT_EYE,
+    FACEMESH_LEFT_EYEBROW,
+    FACEMESH_LEFT_IRIS,
+    FACEMESH_LIPS,
+    FACEMESH_RIGHT_EYE,
+    FACEMESH_RIGHT_EYEBROW,
+    FACEMESH_RIGHT_IRIS,
     NormalizedLandmark,
     NormalizedLandmarkList,
     POSE_LANDMARKS,
     Results
 } from "@mediapipe/holistic";
-import {Matrix, Nullable, Quaternion, TransformNode} from "@babylonjs/core";
-import {Vector3} from "@babylonjs/core";
+import {Nullable, Quaternion, Vector3} from "@babylonjs/core";
 import {
-    axesToBasis,
-    AXIS, calcAvgPlane,
+    AXIS,
+    Basis,
+    calcAvgPlane,
+    cloneableQuaternionToQuaternion,
     degreeBetweenVectors,
     EuclideanHighPassFilter,
     FACE_LANDMARK_LENGTH,
-    GaussianVectorFilter, getAxes,
-    HAND_BONE_NODES,
+    GaussianVectorFilter,
+    getBasis,
     HAND_LANDMARK_LENGTH,
     HAND_LANDMARKS,
     initArray,
     KeysMatching,
-    NodeWorldMatrixMap,
     normalizedLandmarkToVector,
     OneEuroVectorFilter,
-    POSE_LANDMARK_LENGTH, printQuaternion, quaternionBetweenBases,
+    POSE_LANDMARK_LENGTH,
+    quaternionBetweenBases,
     quaternionBetweenVectors,
     quaternionToDegrees,
     ReadonlyKeys,
-    remapRangeWithCap, reverseRotation, Vector33,
+    remapRangeWithCap,
+    reverseRotation,
     vectorToNormalizedLandmark
 } from "../helper/utils";
 
@@ -60,8 +67,17 @@ export class CloneableQuaternion {
     public z: number = 0;
     public w: number = 1;
 
-    constructor(q: Quaternion) {
-        this.set(q);
+    private readonly _baseBasis: Basis;
+    get baseBasis(): Basis {
+        return this._baseBasis;
+    }
+
+    constructor(
+        q: Nullable<Quaternion>,
+        basis?: Basis
+    ) {
+        if (q) this.set(q);
+        this._baseBasis = basis ? basis : new Basis(null);
     }
 
     public set(q: Quaternion) {
@@ -69,6 +85,10 @@ export class CloneableQuaternion {
         this.y = q.y;
         this.z = q.z;
         this.w = q.w;
+    }
+
+    public rotateBasis(q: Quaternion): Basis {
+        return this._baseBasis.rotateByQuaternion(q);
     }
 }
 export type CloneableQuaternionList = CloneableQuaternion[];
@@ -106,6 +126,73 @@ export class PoseKeyPoints {
 
 export type PosesKeys = keyof Omit<Poses, KeysMatching<Poses, Function> | ReadonlyKeys<Poses>>;
 
+function initHandBoneRotations(isLeft: boolean): CloneableQuaternionList {
+    const ret = [];
+
+    // Wrist's basis is used for calculating quaternion between two Cartesian coordinate systems directly
+    // All others' are used for rotating planes of a Spherical coordinate system at the node
+    ret.push(new CloneableQuaternion(
+        new Quaternion(0, 0, 0, 0), isLeft ? getBasis(
+            [
+                new Vector3(0, 0, 0),
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(isLeft ? 1 : -1, 0, 1)
+            ]) : new Basis([
+            new Vector3(-0.9327159079568041, 0.12282522615654383, -0.3390501421086685),
+            new Vector3(-0.010002212677077182, 0.0024727643453822945, 0.028411551927747327),
+            new Vector3(0.14320801411112857, 0.9890497926949048, -0.03566472016590984)
+        ])));
+    // Thumb
+    for (let i = 0; i < 4; ++i) {
+        ret.push(new CloneableQuaternion(
+            new Quaternion(0, 0, 0, 0), new Basis([
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(0, 0, 1),
+            ])));
+    }
+    // Index
+    for (let i = 0; i < 4; ++i) {
+        ret.push(new CloneableQuaternion(
+            new Quaternion(0, 0, 0, 0), new Basis([
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(0, 0, 1),
+            ])));
+    }
+    //Middle
+    for (let i = 0; i < 4; ++i) {
+        ret.push(new CloneableQuaternion(
+            new Quaternion(0, 0, 0, 0), new Basis([
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(0, 0, 1),
+            ])));
+    }
+    //Ring
+    for (let i = 0; i < 4; ++i) {
+        ret.push(new CloneableQuaternion(
+            new Quaternion(0, 0, 0, 0), new Basis([
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(0, 0, 1),
+            ])));
+    }
+    //Pinky
+    for (let i = 0; i < 4; ++i) {
+        ret.push(new CloneableQuaternion(
+            new Quaternion(0, 0, 0, 0), new Basis([
+                new Vector3(isLeft ? 1 : -1, 0, 0),
+                new Vector3(0, 1, 0),
+                new Vector3(0, 0, 1),
+            ])));
+    }
+
+    if (ret.length != HAND_LANDMARK_LENGTH) throw Error("Hand bone rotation array has wrong length!");
+
+    return ret;
+}
+
 export class Poses {
     public static readonly VISIBILITY_THRESHOLD: number = 0.6;
     public static readonly FACE_MESH_CONNECTIONS = [
@@ -133,10 +220,6 @@ export class Poses {
     private static readonly EYE_WIDTH_BASELINE = 0.0526;
     private static readonly MOUTH_WIDTH_BASELINE = 0.095;
     private static readonly LR_FACE_DIRECTION_RANGE = 27;
-
-    // VRMManager
-    private leftHandBoneWorldMatrices: Nullable<NodeWorldMatrixMap> = null;
-    private rightHandBoneWorldMatrices: Nullable<NodeWorldMatrixMap> = null;
 
     // Results
     public cloneableInputResults: Nullable<CloneableResults> = null;
@@ -253,11 +336,7 @@ export class Poses {
     }
 
     // Calculated bone rotations
-    private _leftHandBoneRotations: CloneableQuaternionList = initArray<CloneableQuaternion>(
-        HAND_LANDMARK_LENGTH, () => {
-            return new CloneableQuaternion(
-                new Quaternion(0, 0, 0, 0));
-        });
+    private _leftHandBoneRotations: CloneableQuaternionList = initHandBoneRotations(true);
     get leftHandBoneRotations(): CloneableQuaternionList {
         return this._leftHandBoneRotations;
     }
@@ -268,11 +347,7 @@ export class Poses {
     get leftHandNormals(): NormalizedLandmarkList {
         return this._leftHandNormals;
     }
-    private _rightHandBoneRotations: CloneableQuaternionList = initArray<CloneableQuaternion>(
-        HAND_LANDMARK_LENGTH, () => {
-            return new CloneableQuaternion(
-                new Quaternion(0, 0, 0, 0));
-        });
+    private _rightHandBoneRotations: CloneableQuaternionList = initHandBoneRotations(false);
     get rightHandBoneRotations(): CloneableQuaternionList {
         return this._rightHandBoneRotations;
     }
@@ -287,20 +362,6 @@ export class Poses {
     private midHipBase: Nullable<Vector3> = null;
 
     constructor() {}
-
-    public bindHumanoidWorldMatrix(boneMap: NodeWorldMatrixMap) {
-        this.leftHandBoneWorldMatrices = {};
-        this.rightHandBoneWorldMatrices = {};
-        for (const k in boneMap) {
-            if (k.includes('Proximal') || k.includes('Intermediate')
-                || k.includes('Distal') ||  k.includes('Hand')) {
-                if (k[0] === 'l')
-                    this.leftHandBoneWorldMatrices[k] = boneMap[k];
-                else
-                    this.rightHandBoneWorldMatrices[k] = boneMap[k];
-            }
-        }
-    }
 
     public process(results: CloneableResults, dt: number) {
         this.cloneableInputResults = results;
@@ -532,11 +593,6 @@ export class Poses {
 
         for (const [k, v] of Object.entries(hands)) {
             const isLeft = k === 'left';
-            const thisHandBoneWorldMatrices = isLeft
-                ? this.leftHandBoneWorldMatrices
-                : this.rightHandBoneWorldMatrices;
-
-            if (!thisHandBoneWorldMatrices) return;
 
             const vertices: FilteredVectorLandmark3[] = [
                 [v[HAND_LANDMARKS.WRIST], v[HAND_LANDMARKS.PINKY_MCP], v[HAND_LANDMARKS.INDEX_FINGER_MCP]],
@@ -557,18 +613,8 @@ export class Poses {
 
             const handRotationKey = `${k}HandBoneRotations`;
             const handRotations = this[handRotationKey as PosesKeys] as CloneableQuaternionList;
-
-            const axes1: Vector33 = isLeft ? getAxes(
-                [
-                    new Vector3(0, 0, 0),
-                    new Vector3(isLeft ? 1 : -1, 0, 0),
-                    new Vector3(isLeft ? 1 : -1, 0, 1)
-                ]) : [
-                    new Vector3(-0.9327159079568041, 0.12282522615654383, -0.3390501421086685),
-                    new Vector3(-0.010002212677077182, 0.0024727643453822945, 0.028411551927747327),
-                    new Vector3(0.14320801411112857, 0.9890497926949048, -0.03566472016590984)
-                ];
-            const basis1 = axesToBasis(axes1);
+            // TODO: left hand axes offset
+            const basis1: Basis = handRotations[HAND_LANDMARKS.WRIST].baseBasis;
 
             // Project palm landmarks to average plane
             const projectedLandmarks = calcAvgPlane([
@@ -578,21 +624,19 @@ export class Poses {
                 v[HAND_LANDMARKS.RING_FINGER_MCP].pos,
                 v[HAND_LANDMARKS.PINKY_MCP].pos
             ], rootNormal);
-            const axes2 = getAxes([
+            const basis2 = getBasis([
                 projectedLandmarks[0],
                 projectedLandmarks[1],
                 projectedLandmarks[4]
             ]);
-            const basis2 = axesToBasis(axes2);
             const wristRotationQuaternionRaw = quaternionBetweenBases(basis1, basis2);
-
-            if (!isLeft) printQuaternion(wristRotationQuaternionRaw, "wristRotationQuaternionRaw: ");
-            handNormals.push(vectorToNormalizedLandmark(axes1[0]));
-            handNormals.push(vectorToNormalizedLandmark(axes1[1]));
-            handNormals.push(vectorToNormalizedLandmark(axes1[2]));
-            handNormals.push(vectorToNormalizedLandmark(axes2[0]));
-            handNormals.push(vectorToNormalizedLandmark(axes2[1]));
-            handNormals.push(vectorToNormalizedLandmark(axes2[2]));
+            // // TODO: Debug only
+            // handNormals.push(vectorToNormalizedLandmark(axes1[0]));
+            // handNormals.push(vectorToNormalizedLandmark(axes1[1]));
+            // handNormals.push(vectorToNormalizedLandmark(axes1[2]));
+            // handNormals.push(vectorToNormalizedLandmark(axes2[0]));
+            // handNormals.push(vectorToNormalizedLandmark(axes2[1]));
+            // handNormals.push(vectorToNormalizedLandmark(axes2[2]));
 
             const wristRotationQuaternion = reverseRotation(wristRotationQuaternionRaw, AXIS.yz);
             handRotations[HAND_LANDMARKS.WRIST].set(wristRotationQuaternion);
@@ -602,31 +646,37 @@ export class Poses {
 
             for (let i = 1; i < HAND_LANDMARK_LENGTH; ++i) {
                 if (i % 4 === 0) continue;
+                if (i !== 9) continue;
 
                 const thisLandmark = v[i].pos.clone();
                 const nextLandmark = v[i + 1].pos.clone();
-                const thisDir = nextLandmark.subtract(thisLandmark);
-                // const prevQuaternion = cloneableQuaternionToQuaternion(handRotations[(i - 1) % 4 === 0 ? 0 : i - 1]);
-                // const prevRotationMat = Matrix.Identity();
-                const invPrevRotationMat = Matrix.Identity();
-                const prevBoneKey = `${k}${HAND_BONE_NODES[i - 1]}`;
-                // @ts-ignore
-                const prevNodeWorldMat = Matrix.FromArray(thisHandBoneWorldMatrices[prevBoneKey]._m);
-                const prevRotationMat = prevNodeWorldMat.getRotationMatrix().clone();
-                const prevRotationDegrees = quaternionToDegrees(Quaternion.FromRotationMatrix(prevRotationMat));
-                // prevQuaternion.toRotationMatrix(prevRotationMat);
-                prevRotationMat.invertToRef(invPrevRotationMat);
-                const thisRotationQuaternion = quaternionBetweenVectors(thisDir, baseFingerDir);
-                const thisRotationDegreesBefore = quaternionToDegrees(thisRotationQuaternion);
-                const thisRotationMat = Matrix.Identity();
-                thisRotationQuaternion.toRotationMatrix(thisRotationMat);
-                const thisQuaternion = Quaternion.FromRotationMatrix(thisRotationMat.multiply(invPrevRotationMat));
-                const thisRotationDegreesAfter = quaternionToDegrees(thisQuaternion);
-                // if (i === HAND_LANDMARKS.MIDDLE_FINGER_MCP || i === HAND_LANDMARKS.MIDDLE_FINGER_PIP || i === HAND_LANDMARKS.MIDDLE_FINGER_DIP) {
-                //     console.debug(`${k}${HAND_BONE_NODES[i]}`, prevRotationDegrees,
-                //         thisRotationDegreesBefore, thisRotationDegreesAfter);
-                // }
-                handRotations[i].set(thisQuaternion);
+                const thisDir = nextLandmark.subtract(thisLandmark).normalize();
+
+                const prevIsWrist = (i - 1) % 4 === 0;
+                const prevQuaternion = reverseRotation(
+                    cloneableQuaternionToQuaternion(handRotations[prevIsWrist ? 0 : i - 1]),
+                    prevIsWrist ? AXIS.yz : AXIS.none);
+                const thisBasis = handRotations[i].rotateBasis(prevQuaternion);
+                // const this
+
+
+                const thisQuaternion = quaternionBetweenVectors(baseFingerDir, thisDir);
+                const finalQuaternion = thisQuaternion.multiply(Quaternion.Inverse(prevQuaternion));
+
+                const normal1 = Vector3.Zero();
+                const normal2 = Vector3.Zero();
+                const normal3 = Vector3.Zero();
+                baseFingerDir.rotateByQuaternionToRef(prevQuaternion, normal1);
+                baseFingerDir.rotateByQuaternionToRef(thisQuaternion, normal2);
+                normal1.rotateByQuaternionToRef(finalQuaternion, normal3);
+                handNormals.push(vectorToNormalizedLandmark(normal1));
+                handNormals.push(vectorToNormalizedLandmark(normal2));
+                handNormals.push(vectorToNormalizedLandmark(normal3));
+                const prevRotationDegrees = quaternionToDegrees(prevQuaternion);
+                const thisRotationDegrees = quaternionToDegrees(thisQuaternion);
+                const finalRotationDegrees = quaternionToDegrees(finalQuaternion);
+
+                handRotations[i].set(finalQuaternion);
             }
         }
     }

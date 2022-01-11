@@ -69,7 +69,7 @@ export function quaternionToDirectionVector(
     resultQuaternion: CloneableQuaternion
 ): Vector3 {
     const quaternion = cloneableQuaternionToQuaternion(resultQuaternion);
-    let result = Vector3.Zero();
+    const result = Vector3.Zero();
     base.rotateByQuaternionToRef(quaternion, result);
     return result.normalize();
 }
@@ -273,19 +273,23 @@ export class DebugInfo {
         resultPoseLandmarks: NormalizedLandmarkList
     ) {
         if (resultLeftHandNormals) {
-            for (let i = 0; i < this.leftHandNormalArrows.length; ++i) {
+            for (let i = 0; i < Math.min(this.leftHandNormalArrows.length,
+                resultLeftHandNormals.length); ++i) {
                 this.leftHandNormalArrows[i].updateStartAndDirection(
-                    normalizedLandmarkToVector(
-                        resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
+                    // normalizedLandmarkToVector(
+                    //     resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
+                    Vector3.Zero(),
                     normalizedLandmarkToVector(resultLeftHandNormals[i]),
                 );
             }
         }
         if (resultRightHandNormals) {
-            for (let i = 0; i < this.rightHandNormalArrows.length; ++i) {
+            for (let i = 0; i < Math.min(this.rightHandNormalArrows.length,
+                resultRightHandNormals.length); ++i) {
                 this.rightHandNormalArrows[i].updateStartAndDirection(
-                    normalizedLandmarkToVector(
-                        resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
+                    // normalizedLandmarkToVector(
+                    //     resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
+                    Vector3.Zero(),
                     normalizedLandmarkToVector(resultRightHandNormals[i]),
                 );
             }

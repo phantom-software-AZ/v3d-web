@@ -25,9 +25,9 @@ import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
 import * as Comlink from "comlink";
-import {Poses} from "./worker/pose-processing";
+import {CloneableQuaternion, Poses} from "./worker/pose-processing";
 import {TransformNodeMap} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
-import {DegToRad, NodeWorldMatrixMap, RadToDeg} from "./helper/utils";
+import {DegToRad, NodeQuaternionMap, RadToDeg} from "./helper/utils";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
@@ -57,12 +57,11 @@ export async function createScene(
     v3DCore.scene?.onBeforeRenderObservable.add(() => {
         vrmManager.cameras[0].setTarget(vrmManager.rootMesh.getAbsolutePosition());
     });
+    v3DCore.renderingPipeline.depthOfFieldEnabled = false;
 
     // Render loop
     engine.runRenderLoop(() => {
         v3DCore.scene?.render();
-        workerPose.bindHumanoidWorldMatrix(
-            constructBoneQuaternionMap(vrmManager.humanoidBone.nodeMap));
     });
 
     // Model Transformation
@@ -79,25 +78,9 @@ export async function createScene(
     // TODO: Debug only
     // @ts-ignore
     window['vrmManager'] = vrmManager;
-    // @ts-ignore
-    vrmManager.r = Quaternion.RotationYawPitchRoll;
-    // @ts-ignore
-    vrmManager.rtd = RadToDeg;
-    // @ts-ignore
-    vrmManager.dtr = DegToRad;
 
     // Debug
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
 
     return vrmManager;
-}
-
-export const constructBoneQuaternionMap = (
-    nodeMap: TransformNodeMap
-) => {
-    const retMap: NodeWorldMatrixMap = {};
-    for (const [k, v] of Object.entries(nodeMap)) {
-        retMap[k] = v.getWorldMatrix();
-    }
-    return retMap;
 }
