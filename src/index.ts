@@ -38,7 +38,7 @@ import {
     test_quaternionBetweenBases3,
     test_quaternionBetweenVectors
 } from "./helper/utils";
-import {Vector3} from "@babylonjs/core";
+import {Quaternion, Vector3} from "@babylonjs/core";
 
 
 /*
@@ -89,6 +89,8 @@ window.addEventListener('load', async (e) => {
     // @ts-ignore
     window.r = quaternionToDegrees;
     // @ts-ignore
+    window.q = Quaternion.FromEulerAngles;
+    // @ts-ignore
     window.rtd = RadToDeg;
     // @ts-ignore
     window.dtr = DegToRad;
@@ -97,7 +99,8 @@ window.addEventListener('load', async (e) => {
     test_quaternionBetweenVectors();
     test_calcSphericalCoord();
     test_calcSphericalCoord(new Vector3(
-        DegToRad(45), DegToRad(135), DegToRad(90)));
+        DegToRad(5), DegToRad(89), DegToRad(36)));
+    debugger;
 
     // v3d
     const vrmManager = await createScene(

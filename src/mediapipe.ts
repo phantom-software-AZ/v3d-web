@@ -42,15 +42,16 @@ import {
 import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
-import {Angle, Vector3} from "@babylonjs/core";
+import {Angle, Quaternion, Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
 import {
     cloneableQuaternionToQuaternion,
     FrameMonitor,
-    HAND_LANDMARKS,
+    HAND_LANDMARKS, HAND_LANDMARKS_BONE_MAPPING, KeysMatching, printQuaternion, ReadonlyKeys,
     remapDegreeWithCap
 } from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
+import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
 
 const frameMonitor = new FrameMonitor();
 
@@ -170,13 +171,24 @@ export function onResults(
                 remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
             );
         })();
-        vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
-        vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        // vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
+        const lr = 'right';
+        for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+            const key = lr + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+            if (key in vrmManager.humanoidBone) {
+                vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultRightHandBoneRotations[v]);
+            }
+        }
+        //     vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        // vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        // vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        // printQuaternion(Quaternion.FromRotationMatrix(
+        //     vrmManager.humanoidBone.rightMiddleProximal
+        //         .getWorldMatrix().getRotationMatrix()));
 
         // console.debug("Results processed!");
     });
