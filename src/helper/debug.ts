@@ -102,8 +102,8 @@ export class DebugInfo {
             0.02, 32, 0.06, 0.06,
             0.5, Vector3.Zero(), Vector3.One());
 
-        this.leftHandNormalArrows = this.initNormalArrows(6);
-        this.rightHandNormalArrows = this.initNormalArrows(6);
+        this.leftHandNormalArrows = this.initNormalArrows(10);
+        this.rightHandNormalArrows = this.initNormalArrows(10);
 
         scene.debugLayer.show({
             globalRoot: document.getElementById('wrapper') as HTMLElement,
@@ -278,7 +278,7 @@ export class DebugInfo {
                 this.leftHandNormalArrows[i].updateStartAndDirection(
                     // normalizedLandmarkToVector(
                     //     resultPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST]),
-                    Vector3.Zero(),
+                    i < 5 ? Vector3.Zero() : new Vector3(0, 1, 0),
                     normalizedLandmarkToVector(resultLeftHandNormals[i]),
                 );
             }
@@ -289,7 +289,7 @@ export class DebugInfo {
                 this.rightHandNormalArrows[i].updateStartAndDirection(
                     // normalizedLandmarkToVector(
                     //     resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
-                    Vector3.Zero(),
+                    i < 5 ? Vector3.Zero() : new Vector3(0, 1, 0),
                     normalizedLandmarkToVector(resultRightHandNormals[i]),
                 );
             }

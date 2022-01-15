@@ -134,7 +134,7 @@ export function onResults(
             // debugInfo.updateHandWristNormalArrows(
             //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             debugInfo.updateHandNormalArrows(
-                null, resultRightHandNormals, resultPoseLandmarks);
+                resultLeftHandNormals, null, resultPoseLandmarks);
         }
 
         vrmManager.morphing('A', await workerPose.mouthMorph);
@@ -155,12 +155,21 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
-        vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        // vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
+        // vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
+        // vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
+        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
+        const rl = 'left';
+        for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+            const key = rl + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+            if (key in vrmManager.humanoidBone) {
+                vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultLeftHandBoneRotations[v]);
+            }
+        }
+
         const rightWristQuaternion =  cloneableQuaternionToQuaternion(
             resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]);
         const rightWristRotationAngles = (()=>{

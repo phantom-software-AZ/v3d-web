@@ -100,7 +100,6 @@ window.addEventListener('load', async (e) => {
     test_calcSphericalCoord();
     test_calcSphericalCoord(new Vector3(
         DegToRad(5), DegToRad(89), DegToRad(36)));
-    debugger;
 
     // v3d
     const vrmManager = await createScene(

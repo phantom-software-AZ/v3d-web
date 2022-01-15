@@ -624,11 +624,17 @@ export const reverseRotation = (q: Quaternion, axis: AXIS) => {
     return Quaternion.RotationYawPitchRoll(angles.y, angles.x, angles.z);
 }
 // Always remap degrees. Allow capping two axis.
-export const removeRotationAxis = (
+export const removeRotationAxisWithCap = (
     q: Quaternion,
     axis: AXIS,
+    capAxis1?: AXIS,
+    capLow1?: number,
+    capHigh1?: number,
+    capAxis2?: AXIS,
+    capLow2?: number,
+    capHigh2?: number,
 ) => {
-    const angles = q.toEulerAngles();
+    const angles = quaternionToDegrees(q, true);
     switch (axis) {
         case AXIS.none:
             break;
@@ -661,40 +667,57 @@ export const removeRotationAxis = (
         default:
             throw Error("Unknown axis!");
     }
-    // if (capAxis1 !== undefined && capLow1 !== undefined && capHigh1 !== undefined) {
-    //     switch (capAxis1 as AXIS) {
-    //         case AXIS.x:
-    //             angles.x = rangeCap(angles.x, capLow1, capHigh1);
-    //             break;
-    //         case AXIS.y:
-    //             angles.y = rangeCap(angles.y, capLow1, capHigh1);
-    //             break;
-    //         case AXIS.z:
-    //             angles.z = rangeCap(angles.z, capLow1, capHigh1);
-    //             break;
-    //         default:
-    //             throw Error("Unknown cap axis!");
-    //     }
-    // }
-    // if (capAxis2 !== undefined && capLow2 !== undefined && capHigh2 !== undefined) {
-    //     switch (capAxis2 as AXIS) {
-    //         case AXIS.x:
-    //             angles.x = rangeCap(angles.x, capLow2, capHigh2);
-    //             break;
-    //         case AXIS.y:
-    //             angles.y = rangeCap(angles.y, capLow2, capHigh2);
-    //             break;
-    //         case AXIS.z:
-    //             angles.z = rangeCap(angles.z, capLow2, capHigh2);
-    //             break;
-    //         default:
-    //             throw Error("Unknown cap axis!");
-    //     }
-    // }
+    if (capAxis1 !== undefined && capLow1 !== undefined && capHigh1 !== undefined) {
+        switch (capAxis1 as AXIS) {
+            case AXIS.x:
+                angles.x = rangeCap(angles.x, capLow1, capHigh1);
+                break;
+            case AXIS.y:
+                angles.y = rangeCap(angles.y, capLow1, capHigh1);
+                break;
+            case AXIS.z:
+                angles.z = rangeCap(angles.z, capLow1, capHigh1);
+                break;
+            default:
+                throw Error("Unknown cap axis!");
+        }
+    }
+    if (capAxis2 !== undefined && capLow2 !== undefined && capHigh2 !== undefined) {
+        switch (capAxis2 as AXIS) {
+            case AXIS.x:
+                angles.x = rangeCap(angles.x, capLow2, capHigh2);
+                break;
+            case AXIS.y:
+                angles.y = rangeCap(angles.y, capLow2, capHigh2);
+                break;
+            case AXIS.z:
+                angles.z = rangeCap(angles.z, capLow2, capHigh2);
+                break;
+            default:
+                throw Error("Unknown cap axis!");
+        }
+    }
     return Quaternion.RotationYawPitchRoll(
-        angles.y,
-        angles.x,
-        angles.z);
+        DegToRad(angles.y),
+        DegToRad(angles.x),
+        DegToRad(angles.z));
+}
+export const exchangeRotationAxis = (
+    q: Quaternion,
+    axis1: AXIS,
+    axis2: AXIS,
+) => {
+    const angles: number[] = [];
+    q.toEulerAngles().toArray(angles);
+    const angle1 = angles[axis1];
+    const angle2 = angles[axis2];
+    const temp = angle1;
+    angles[axis1] = angle2;
+    angles[axis2] = temp;
+    return Quaternion.FromEulerAngles(
+        angles[0],
+        angles[1],
+        angles[2]);
 }
 
 export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
@@ -824,56 +847,56 @@ export function test_quaternionBetweenBases3() {
     const deg10 = new Vector3(90, 0, 0);
     const basis1 = basis0.rotateByQuaternion(Quaternion.FromEulerAngles(DegToRad(deg10.x), DegToRad(deg10.y), DegToRad(deg10.z)));
     basis1.verifyBasis();
-    const degrees11 = quaternionToDegrees(quaternionBetweenBases(basis0, basis1), remap);
-    console.log(vectorToNormalizedLandmark(degrees11), degreesEqualInQuaternion(deg10, degrees11));
+    const degrees1 = quaternionToDegrees(quaternionBetweenBases(basis0, basis1), remap);
+    console.log(vectorToNormalizedLandmark(degrees1), degreesEqualInQuaternion(deg10, degrees1));
 
     // Y 225
+    const deg20 = new Vector3(0, 225, 0);
     const basis2 = basis0.rotateByQuaternion(
-            Quaternion.RotationYawPitchRoll(DegToRad(225), 0, 0));
+        Quaternion.FromEulerAngles(DegToRad(deg20.x), DegToRad(deg20.y), DegToRad(deg20.z)));
     basis2.verifyBasis();
     const degrees2 = quaternionToDegrees(quaternionBetweenBases(basis0, basis2), remap);
-    console.log(vectorToNormalizedLandmark(degrees2));
+    console.log(vectorToNormalizedLandmark(degrees2), degreesEqualInQuaternion(deg20, degrees2));
 
     // Z 135
+    const deg30 = new Vector3(0, 0, 135);
     const basis3 = basis0.rotateByQuaternion(
-            Quaternion.RotationYawPitchRoll(0, 0, DegToRad(135)));
+        Quaternion.FromEulerAngles(DegToRad(deg30.x), DegToRad(deg30.y), DegToRad(deg30.z)));
     basis3.verifyBasis();
     const degrees3 = quaternionToDegrees(quaternionBetweenBases(basis0, basis3), remap);
-    console.log(vectorToNormalizedLandmark(degrees3));
+    console.log(vectorToNormalizedLandmark(degrees3), degreesEqualInQuaternion(deg30, degrees3));
 
     // X Y 135
     const deg40 = new Vector3(135, 135, 0);
-    const a1 = Quaternion.RotationYawPitchRoll(DegToRad(deg40.y), DegToRad(deg40.x), 0);
-    const a2 = Quaternion.FromEulerAngles(DegToRad(135), DegToRad(135), 0);
-    const a3 = Quaternion.FromEulerAngles(DegToRad(deg40.x), DegToRad(deg40.y), DegToRad(deg40.z));
-    const basis4 = basis0.rotateByQuaternion(a3);
+    const basis4 = basis0.rotateByQuaternion(
+        Quaternion.FromEulerAngles(DegToRad(deg40.x), DegToRad(deg40.y), DegToRad(deg40.z)));
     basis4.verifyBasis();
-    const b1 = quaternionBetweenBases(basis0, basis4);
-    const c0 = quaternionToDegrees(b1);
-    const c1 = Quaternion.FromEulerVector(c0);
-    const degrees41 = quaternionToDegrees(b1, remap);
-    console.log(vectorToNormalizedLandmark(degrees41), degreesEqualInQuaternion(deg40, degrees41));
+    const degrees4 = quaternionToDegrees(quaternionBetweenBases(basis0, basis4), remap);
+    console.log(vectorToNormalizedLandmark(degrees4), degreesEqualInQuaternion(deg40, degrees4));
 
     // X Z 90
+    const deg50 = new Vector3(90, 0, 90);
     const basis5 = basis0.rotateByQuaternion(
-            Quaternion.FromEulerAngles(DegToRad(90), 0, DegToRad(90)));
+        Quaternion.FromEulerAngles(DegToRad(deg50.x), DegToRad(deg50.y), DegToRad(deg50.z)));
     basis5.verifyBasis();
     const degrees5 = quaternionToDegrees(quaternionBetweenBases(basis0, basis5), remap);
-    console.log(vectorToNormalizedLandmark(degrees5));
+    console.log(vectorToNormalizedLandmark(degrees5), degreesEqualInQuaternion(deg50, degrees5));
 
-    // Y Z 45
+    // Y Z 225
+    const deg60 = new Vector3(0, 225, 225);
     const basis6 = basis0.rotateByQuaternion(
-            Quaternion.RotationYawPitchRoll(DegToRad(45),0, DegToRad(45)));
+        Quaternion.FromEulerAngles(DegToRad(deg60.x), DegToRad(deg60.y), DegToRad(deg60.z)));
     basis6.verifyBasis();
     const degrees6 = quaternionToDegrees(quaternionBetweenBases(basis0, basis6), remap);
-    console.log(vectorToNormalizedLandmark(degrees6));
+    console.log(vectorToNormalizedLandmark(degrees6), degreesEqualInQuaternion(deg60, degrees6));
 
     // X Y Z 135
+    const deg70 = new Vector3(135, 135, 135);
     const basis7 = basis0.rotateByQuaternion(
-            Quaternion.RotationYawPitchRoll(DegToRad(135),DegToRad(135), DegToRad(135)));
+        Quaternion.FromEulerAngles(DegToRad(deg70.x), DegToRad(deg70.y), DegToRad(deg70.z)));
     basis7.verifyBasis();
     const degrees7 = quaternionToDegrees(quaternionBetweenBases(basis0, basis7), remap);
-    console.log(vectorToNormalizedLandmark(degrees7));
+    console.log(vectorToNormalizedLandmark(degrees7), degreesEqualInQuaternion(deg70, degrees7));
 }
 
 export function test_getBasis() {
@@ -974,7 +997,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec10 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q11, vec10);
-    const [rady1, radz1] = calcSphericalCoord(vec10, basis0);
+    const [rady1, radz1] = calcSphericalCoord(vec10, basis0, true);
     const vec11 = Vector3.Zero();
     const q12 = sphericalToQuaternion(basis0, rady1, radz1);
     basis0.x.rotateByQuaternionToRef(q12, vec11);
@@ -987,7 +1010,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec20 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q21, vec20);
-    const [rady2, radz2] = calcSphericalCoord(vec20, basis0);
+    const [rady2, radz2] = calcSphericalCoord(vec20, basis0, true);
     const vec21 = Vector3.Zero();
     const q22 = sphericalToQuaternion(basis0, rady2, radz2);
     basis0.x.rotateByQuaternionToRef(q22, vec21);
@@ -1000,7 +1023,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec30 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q31, vec30);
-    const [rady3, radz3] = calcSphericalCoord(vec30, basis0);
+    const [rady3, radz3] = calcSphericalCoord(vec30, basis0, true);
     const vec31 = Vector3.Zero();
     const q32 = sphericalToQuaternion(basis0, rady3, radz3);
     basis0.x.rotateByQuaternionToRef(q32, vec31);
@@ -1013,7 +1036,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec40 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q41, vec40);
-    const [rady4, radz4] = calcSphericalCoord(vec40, basis0);
+    const [rady4, radz4] = calcSphericalCoord(vec40, basis0, true);
     const vec41 = Vector3.Zero();
     const q42 = sphericalToQuaternion(basis0, rady4, radz4);
     basis0.x.rotateByQuaternionToRef(q42, vec41);
@@ -1026,7 +1049,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec50 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q51, vec50);
-    const [rady5, radz5] = calcSphericalCoord(vec50, basis0);
+    const [rady5, radz5] = calcSphericalCoord(vec50, basis0, true);
     const vec51 = Vector3.Zero();
     const q52 = sphericalToQuaternion(basis0, rady5, radz5);
     basis0.x.rotateByQuaternionToRef(q52, vec51);
@@ -1039,7 +1062,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec60 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q61, vec60);
-    const [rady6, radz6] = calcSphericalCoord(vec60, basis0);
+    const [rady6, radz6] = calcSphericalCoord(vec60, basis0, true);
     const vec61 = Vector3.Zero();
     const q62 = sphericalToQuaternion(basis0, rady6, radz6);
     basis0.x.rotateByQuaternionToRef(q62, vec61);
@@ -1052,7 +1075,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec70 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q71, vec70);
-    const [rady7, radz7] = calcSphericalCoord(vec70, basis0);
+    const [rady7, radz7] = calcSphericalCoord(vec70, basis0, true);
     const vec71 = Vector3.Zero();
     const q72 = sphericalToQuaternion(basis0, rady7, radz7);
     basis0.x.rotateByQuaternionToRef(q72, vec71);
@@ -1113,7 +1136,10 @@ export function calcAvgPlane(pts: Vector3[], normal: Vector3): Vector3[] {
 }
 
 // Result is in Radian on unit sphere (r = 1).
-export function calcSphericalCoord(pos: Vector3, basis: Basis) {
+export function calcSphericalCoord0(
+    pos: Vector3, basis: Basis,
+    testMode = false
+) {
     const qToOriginal = Quaternion.Inverse(Quaternion.FromRotationMatrix(
         basis.asMatrix())).normalize();
     const posInOriginal = Vector3.Zero();
@@ -1122,15 +1148,25 @@ export function calcSphericalCoord(pos: Vector3, basis: Basis) {
 
     // Calculate theta and phi
     const x = posInOriginal.x;
-    const y = posInOriginal.y;
-    const z = posInOriginal.z;
+    let y = posInOriginal.y;
+    let z = posInOriginal.z;
+
+    // Flip y and z if |y| > |z|
+    if (!testMode && Math.abs(y) > Math.abs(z)) {
+        const temp = y;
+        y = y / Math.abs(y) * Math.abs(z);
+        z = z / Math.abs(z) * Math.abs(temp);
+    }
+
     const theta = Math.acos(z);
     const phi = Math.atan2(y, x);
 
     return [theta, phi];
 }
 // Modified version, only allow -90 < phi < 90, but -180 < theta < 180.
-export function calcSphericalCoord0(pos: Vector3, basis: Basis) {
+export function calcSphericalCoord(
+    pos: Vector3, basis: Basis,
+    testMode = false) {
     const qToOriginal = Quaternion.Inverse(quaternionBetweenBases(
         new Basis(null), basis));
     const posInOriginal = Vector3.Zero();
