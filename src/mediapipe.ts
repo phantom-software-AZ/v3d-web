@@ -47,7 +47,7 @@ import {debugInfo} from "./core";
 import {
     cloneableQuaternionToQuaternion,
     FrameMonitor,
-    HAND_LANDMARKS, HAND_LANDMARKS_BONE_MAPPING, KeysMatching, printQuaternion, ReadonlyKeys,
+    HAND_LANDMARKS, HAND_LANDMARKS_BONE_MAPPING, handLandMarkToBoneName, KeysMatching, printQuaternion, ReadonlyKeys,
     remapDegreeWithCap
 } from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
@@ -117,8 +117,7 @@ export function onResults(
         const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
         const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
         const resultIrisQuaternions = await workerPose.irisQuaternion;
-        const resultLeftHandBoneRotations = await workerPose.leftHandBoneRotations;
-        const resultRightHandBoneRotations = await workerPose.rightHandBoneRotations;
+        const resultBoneRotations = await workerPose.boneRotations;
         const resultLeftHandNormals = await workerPose.leftHandNormals;
         const resultRightHandNormals = await workerPose.rightHandNormals;
         if (debugInfo) {
@@ -145,7 +144,7 @@ export function onResults(
         vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
         vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
         const leftWristQuaternion = cloneableQuaternionToQuaternion(
-            resultLeftHandBoneRotations[HAND_LANDMARKS.WRIST]);
+            resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, true)]);
         const leftWristRotationAngles = (()=>{
             const angles = leftWristQuaternion.toEulerAngles();
             return new Vector3(
@@ -166,12 +165,12 @@ export function onResults(
             const key = rl + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
             if (key in vrmManager.humanoidBone) {
                 vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultLeftHandBoneRotations[v]);
+                    resultBoneRotations[key]);
             }
         }
 
         const rightWristQuaternion =  cloneableQuaternionToQuaternion(
-            resultRightHandBoneRotations[HAND_LANDMARKS.WRIST]);
+            resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, false)]);
         const rightWristRotationAngles = (()=>{
             const angles = rightWristQuaternion.toEulerAngles();
             return new Vector3(
@@ -186,7 +185,7 @@ export function onResults(
             const key = lr + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
             if (key in vrmManager.humanoidBone) {
                 vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultRightHandBoneRotations[v]);
+                    resultBoneRotations[key]);
             }
         }
         //     vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(

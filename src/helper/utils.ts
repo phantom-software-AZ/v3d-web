@@ -412,7 +412,8 @@ export const vectorToNormalizedLandmark = (l: Vector3) : NormalizedLandmark => {
     return {x: l.x, y: l.y, z: l.z};
 };
 export const cloneableQuaternionToQuaternion = (q: CloneableQuaternion): Quaternion => {
-    return new Quaternion(q.x, q.y, q.z, q.w);
+    const ret = new Quaternion(q.x, q.y, q.z, q.w);
+    return ret;
 };
 
 export function range(start: number, end: number, step: number) {
@@ -428,6 +429,14 @@ export function linspace(start: number, end: number, div: number) {
         {length: div},
         (_, i) => start + i * step
     );
+}
+
+export function objectFlip(obj: any) {
+    const ret: any = {};
+    Object.keys(obj).forEach((key: any) => {
+        ret[obj[key]] = key;
+    });
+    return ret;
 }
 
 export const HAND_LANDMARKS = {
@@ -459,25 +468,58 @@ export const HAND_LANDMARKS_BONE_MAPPING = {
     ThumbProximal: HAND_LANDMARKS.THUMB_CMC,
     ThumbIntermediate: HAND_LANDMARKS.THUMB_MCP,
     ThumbDistal: HAND_LANDMARKS.THUMB_IP,
-    ThumbTip: HAND_LANDMARKS.THUMB_TIP,
     IndexProximal: HAND_LANDMARKS.INDEX_FINGER_MCP,
     IndexIntermediate: HAND_LANDMARKS.INDEX_FINGER_PIP,
     IndexDistal: HAND_LANDMARKS.INDEX_FINGER_DIP,
-    IndexTip: HAND_LANDMARKS.INDEX_FINGER_TIP,
     MiddleProximal: HAND_LANDMARKS.MIDDLE_FINGER_MCP,
     MiddleIntermediate: HAND_LANDMARKS.MIDDLE_FINGER_PIP,
     MiddleDistal: HAND_LANDMARKS.MIDDLE_FINGER_DIP,
-    MiddleTip: HAND_LANDMARKS.MIDDLE_FINGER_TIP,
     RingProximal: HAND_LANDMARKS.RING_FINGER_MCP,
     RingIntermediate: HAND_LANDMARKS.RING_FINGER_PIP,
     RingDistal: HAND_LANDMARKS.RING_FINGER_DIP,
-    RingTip: HAND_LANDMARKS.RING_FINGER_TIP,
     LittleProximal: HAND_LANDMARKS.PINKY_MCP,
     LittleIntermediate: HAND_LANDMARKS.PINKY_PIP,
     LittleDistal: HAND_LANDMARKS.PINKY_DIP,
-    LittleTip: HAND_LANDMARKS.PINKY_TIP,
 };
+export const HAND_LANDMARKS_BONE_REVERSE_MAPPING: {[key:number] : string} = objectFlip(HAND_LANDMARKS_BONE_MAPPING);
 export type HandBoneMappingKey = keyof typeof HAND_LANDMARKS_BONE_MAPPING;
+export function handLandMarkToBoneName(landmark: number, isLeft: boolean) {
+    if (!(landmark in HAND_LANDMARKS_BONE_REVERSE_MAPPING)) throw Error("Wrong landmark given!");
+    return (isLeft ? 'left' : 'right') + HAND_LANDMARKS_BONE_REVERSE_MAPPING[landmark];
+}
+
+/*
+ * Depth-first search/walk of a generic tree.
+ * Also returns a map for backtracking from leaf.
+ */
+export function depthFirstSearch(
+    rootNode: any,
+    f: (n: any) => boolean
+): [any, any] {
+    const stack = [];
+    const parentMap: Map<any, any> = new Map<any, any>();
+    stack.push(rootNode);
+
+    while (stack.length !== 0) {
+        // remove the first child in the stack
+        const currentNode: any = stack.splice(-1, 1)[0];
+        const retVal = f(currentNode);
+        if (retVal) return [currentNode, parentMap];
+
+        const currentChildren = currentNode.children;
+        // add any children in the node at the top of the stack
+        if (currentChildren !== null) {
+            for (let index = 0; index < currentChildren.length; index++) {
+                const child = currentChildren[index];
+                stack.push(child);
+                if (!(parentMap.has(child))) {
+                    parentMap.set(child, currentNode);
+                }
+            }
+        }
+    }
+    return [null, null];
+}
 
 export const rangeCap = (
     v: number,
@@ -525,6 +567,9 @@ export const RadToDeg = (r: number) => {
 }
 export const DegToRad = (d: number) => {
     return Angle.FromDegrees(d).radians();
+}
+export function checkQuaternion(q: Quaternion) {
+    return Number.isFinite(q.x) && Number.isFinite(q.y) && Number.isFinite(q.z) && Number.isFinite(q.w);
 }
 // Same as three.js Quaternion.setFromUnitVectors
 export const quaternionBetweenVectors = (
@@ -1154,8 +1199,8 @@ export function calcSphericalCoord0(
     // Flip y and z if |y| > |z|
     if (!testMode && Math.abs(y) > Math.abs(z)) {
         const temp = y;
-        y = y / Math.abs(y) * Math.abs(z);
-        z = z / Math.abs(z) * Math.abs(temp);
+        y = Math.sign(y) * Math.abs(z);
+        z = Math.sign(z) * Math.abs(temp);
     }
 
     const theta = Math.acos(z);
@@ -1178,10 +1223,13 @@ export function calcSphericalCoord(
     const y = posInOriginal.y;
     const z = posInOriginal.z;
 
-    if (x >= 0) {
-        return [Math.acos(z), Math.atan(y / x)];
+    if (x != 0) {
+        return [Math.sign(x) * Math.acos(z), Math.atan(y / x)];
     } else {
-        return [-Math.acos(z), Math.atan(y / x)];
+        if (y != 0)
+            return [Math.sign(y) * Math.acos(z), Math.PI / 2];
+        else
+            return [Math.acos(z), 0];
     }
 }
 // Assuming rotation starts from (1, 0, 0) in given coordinate system.

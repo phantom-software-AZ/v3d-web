@@ -59,6 +59,9 @@ export async function createScene(
     });
     v3DCore.renderingPipeline.depthOfFieldEnabled = false;
 
+    // Pose web worker
+    await workerPose.setBonesHierarchyTree(vrmManager.transformNodeTree);
+
     // Render loop
     engine.runRenderLoop(() => {
         v3DCore.scene?.render();
