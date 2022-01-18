@@ -85,6 +85,7 @@ export class DebugInfo {
     private readonly rightHandNormalArrow: Arrow3D;
     private readonly leftHandNormalArrows: Arrow3D[];
     private readonly rightHandNormalArrows: Arrow3D[];
+    private readonly poseNormalArrows: Arrow3D[];
 
     constructor(
         private readonly scene: Scene
@@ -94,6 +95,7 @@ export class DebugInfo {
         this.leftHandLandmarkSpheres = this.initLandmarks(HAND_LANDMARK_LENGTH, '#ff0000');
         this.rightHandLandmarkSpheres = this.initLandmarks(HAND_LANDMARK_LENGTH, '#0022ff');
         this.irisNormalArrows = this.initIrisNormalArrows();
+        this.poseNormalArrows = this.initNormalArrows(3);
 
         this.leftHandNormalArrow = new Arrow3D(this.scene,
             0.02, 32, 0.06, 0.06,
@@ -161,7 +163,7 @@ export class DebugInfo {
     public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
         if (resultPoseLandmarks.length !== POSE_LANDMARK_LENGTH) return;
         for (let i = 0; i < POSE_LANDMARK_LENGTH; ++i) {
-            if (i in [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20, 21, 22]) continue;
+            if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20, 21, 22].includes(i)) continue;
             this.poseLandmarkSpheres[i].position.set(
                 resultPoseLandmarks[i].x,
                 resultPoseLandmarks[i].y,
@@ -296,4 +298,18 @@ export class DebugInfo {
         }
     }
 
+    public updatePoseNormalArrows(
+        resultPoseNormals: NormalizedLandmarkList,
+        resultPoseLandmarks: NormalizedLandmarkList
+    ) {
+        if (resultPoseNormals.length !== this.poseNormalArrows.length) return;
+        for (let i = 0; i < this.poseNormalArrows.length; ++i) {
+            this.poseNormalArrows[i].updateStartAndDirection(
+                // normalizedLandmarkToVector(
+                //     resultPoseLandmarks[POSE_LANDMARKS.NOSE]),
+                Vector3.Zero(),
+                normalizedLandmarkToVector(resultPoseNormals[i]),
+            );
+        }
+    }
 }

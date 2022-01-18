@@ -65,8 +65,6 @@ export async function createScene(
     // Render loop
     engine.runRenderLoop(() => {
         v3DCore.scene?.render();
-        workerPose.bindHumanoidWorldMatrix(
-            constructBoneQuaternionMap(vrmManager.humanoidBone.nodeMap));
     });
 
     // Model Transformation
@@ -88,14 +86,4 @@ export async function createScene(
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
 
     return vrmManager;
-}
-
-export const constructBoneQuaternionMap = (
-    nodeMap: TransformNodeMap
-) => {
-    const retMap: NodeWorldMatrixMap = {};
-    for (const [k, v] of Object.entries(nodeMap)) {
-        retMap[k] = v.getWorldMatrix();
-    }
-    return retMap;
 }

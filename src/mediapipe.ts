@@ -104,6 +104,10 @@ export function onResults(
     // Hide the spinner.
     document.body.classList.add('loaded');
 
+    // @ts-ignore: delete camera input to prevent accidental paint
+    // TODO: !!!toggle on before release!!!
+    // delete results.image;
+
     // Worker process
     const dt = frameMonitor.sampleFrame();
     workerPose.process(
@@ -120,6 +124,7 @@ export function onResults(
         const resultBoneRotations = await workerPose.boneRotations;
         const resultLeftHandNormals = await workerPose.leftHandNormals;
         const resultRightHandNormals = await workerPose.rightHandNormals;
+        const resultPoseNormals = await workerPose.poseNormals;
         if (debugInfo) {
             debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             debugInfo.updateFaceNormalArrows(
@@ -134,6 +139,7 @@ export function onResults(
             //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             debugInfo.updateHandNormalArrows(
                 resultLeftHandNormals, null, resultPoseLandmarks);
+            debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
         }
 
         vrmManager.morphing('A', await workerPose.mouthMorph);
@@ -154,12 +160,6 @@ export function onResults(
             );
         })();
         vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
-        // vrmManager.humanoidBone.leftMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        // vrmManager.humanoidBone.leftMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        // vrmManager.humanoidBone.leftMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultLeftHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
         const rl = 'left';
         for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
             const key = rl + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
@@ -188,15 +188,11 @@ export function onResults(
                     resultBoneRotations[key]);
             }
         }
-        //     vrmManager.humanoidBone.rightMiddleDistal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_DIP]);
-        // vrmManager.humanoidBone.rightMiddleIntermediate.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_PIP]);
-        // vrmManager.humanoidBone.rightMiddleProximal.rotationQuaternion = cloneableQuaternionToQuaternion(
-        //     resultRightHandBoneRotations[HAND_LANDMARKS.MIDDLE_FINGER_MCP]);
-        // printQuaternion(Quaternion.FromRotationMatrix(
-        //     vrmManager.humanoidBone.rightMiddleProximal
-        //         .getWorldMatrix().getRotationMatrix()));
+
+        vrmManager.humanoidBone.hips.rotationQuaternion = cloneableQuaternionToQuaternion((
+            resultBoneRotations['hips']));
+        vrmManager.humanoidBone.spine.rotationQuaternion = cloneableQuaternionToQuaternion((
+            resultBoneRotations['spine']));
 
         // console.debug("Results processed!");
     });

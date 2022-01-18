@@ -394,7 +394,8 @@ export class Arrow3D {
 
     public updateStartAndDirection(arrowStart: Vector3, arrowDirection: Vector3) {
         this._arrowStart = arrowStart;
-        this._arrowDirection = arrowDirection;
+        this._arrowDirection = arrowDirection.length() === 0 ?
+            Vector3.One() : arrowDirection;
         this.updatePath();
     }
 }
@@ -1183,7 +1184,6 @@ export function calcAvgPlane(pts: Vector3[], normal: Vector3): Vector3[] {
 // Result is in Radian on unit sphere (r = 1).
 export function calcSphericalCoord0(
     pos: Vector3, basis: Basis,
-    testMode = false
 ) {
     const qToOriginal = Quaternion.Inverse(Quaternion.FromRotationMatrix(
         basis.asMatrix())).normalize();
@@ -1195,13 +1195,6 @@ export function calcSphericalCoord0(
     const x = posInOriginal.x;
     let y = posInOriginal.y;
     let z = posInOriginal.z;
-
-    // Flip y and z if |y| > |z|
-    if (!testMode && Math.abs(y) > Math.abs(z)) {
-        const temp = y;
-        y = Math.sign(y) * Math.abs(z);
-        z = Math.sign(z) * Math.abs(temp);
-    }
 
     const theta = Math.acos(z);
     const phi = Math.atan2(y, x);
