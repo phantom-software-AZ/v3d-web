@@ -41,10 +41,11 @@ import {
 } from "@mediapipe/holistic";
 import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
-import {Poses} from "./worker/pose-processing";
+import {CloneableQuaternion, Poses} from "./worker/pose-processing";
 import {Angle, Quaternion, Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
 import {
+    Basis,
     cloneableQuaternionToQuaternion,
     FrameMonitor,
     HAND_LANDMARKS, HAND_LANDMARKS_BONE_MAPPING, handLandMarkToBoneName, KeysMatching, printQuaternion, ReadonlyKeys,
@@ -113,89 +114,106 @@ export function onResults(
     workerPose.process(
         (({ segmentationMask, image, ...o }) => o)(results),    // Remove canvas properties
         dt,
-    ).then(async (r) => {
-        const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
-        const resultFaceNormal = await workerPose.faceNormal;
-        const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
-        const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
-        const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
-        const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
-        const resultIrisQuaternions = await workerPose.irisQuaternion;
-        const resultBoneRotations = await workerPose.boneRotations;
-        const resultLeftHandNormals = await workerPose.leftHandNormals;
-        const resultRightHandNormals = await workerPose.rightHandNormals;
-        const resultPoseNormals = await workerPose.poseNormals;
-        if (debugInfo) {
-            debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
-            debugInfo.updateFaceNormalArrows(
-                [resultFaceNormal], resultPoseLandmarks);
-            debugInfo.updateFaceMeshLandmarkSpheres(
-                resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
-            debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
-            debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
-            debugInfo.updateIrisQuaternionArrows(
-                resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
-            // debugInfo.updateHandWristNormalArrows(
-            //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
-            debugInfo.updateHandNormalArrows(
-                resultLeftHandNormals, null, resultPoseLandmarks);
-            debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
-        }
+    )
+        .then(async (r) => {
+            // const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+            // const resultFaceNormal = await workerPose.faceNormal;
+            // const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
+            // const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
+            // const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
+            // const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
+            // const resultLeftHandNormals = await workerPose.leftHandNormals;
+            // const resultRightHandNormals = await workerPose.rightHandNormals;
+            // const resultPoseNormals = await workerPose.poseNormals;
 
-        vrmManager.morphing('A', await workerPose.mouthMorph);
-        vrmManager.morphing('Blink', await workerPose.blinkAll);
-        // vrmManager.morphing('Blink_L', await workerPose.blinkLeft);
-        // vrmManager.morphing('Blink_R', await workerPose.blinkRight);
+            // if (debugInfo) {
+            //     debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
+            //     debugInfo.updateFaceNormalArrows(
+            //         [resultFaceNormal], resultPoseLandmarks);
+            //     debugInfo.updateFaceMeshLandmarkSpheres(
+            //         resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
+            //     // debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
+            //     // debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
+            //     debugInfo.updateIrisQuaternionArrows(
+            //         resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
+            //     // debugInfo.updateHandWristNormalArrows(
+            //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
+            //     debugInfo.updateHandNormalArrows(
+            //         resultLeftHandNormals, null, resultPoseLandmarks);
+            //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
+            // }
 
-        vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
-        vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(resultIrisQuaternions[2]);
-        const leftWristQuaternion = cloneableQuaternionToQuaternion(
-            resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, true)]);
-        const leftWristRotationAngles = (()=>{
-            const angles = leftWristQuaternion.toEulerAngles();
-            return new Vector3(
-                remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
-                remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
-                remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
-            );
-        })();
-        vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
-        const rl = 'left';
-        for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
-            const key = rl + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-            if (key in vrmManager.humanoidBone) {
-                vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations[key]);
-            }
-        }
+            workerPose.mouthMorph.then((v) => {
+                vrmManager.morphing('A', v)
+            });
+            workerPose.blinkAll.then((v) => {
+                vrmManager.morphing('Blink', v)
+            });
+            // vrmManager.morphing('Blink_L', await workerPose.blinkLeft);
+            // vrmManager.morphing('Blink_R', await workerPose.blinkRight);
 
-        const rightWristQuaternion =  cloneableQuaternionToQuaternion(
-            resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, false)]);
-        const rightWristRotationAngles = (()=>{
-            const angles = rightWristQuaternion.toEulerAngles();
-            return new Vector3(
-                remapDegreeWithCap(Angle.FromRadians(angles.x).degrees()),
-                remapDegreeWithCap(Angle.FromRadians(angles.y).degrees()),
-                remapDegreeWithCap(Angle.FromRadians(angles.z).degrees()),
-            );
-        })();
-        // vrmManager.humanoidBone.rightHand.rotationQuaternion = rightWristQuaternion;
-        const lr = 'right';
-        for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
-            const key = lr + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-            if (key in vrmManager.humanoidBone) {
-                vrmManager.humanoidBone[key].rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations[key]);
-            }
-        }
+            // TODO: option: iris left/right/sync
+            workerPose.irisQuaternion.then((resultIrisRotations) => {
+                if (vrmManager.humanoidBone.leftEye)
+                    vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultIrisRotations[2]);
+                if (vrmManager.humanoidBone.rightEye)
+                    vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultIrisRotations[2]);
+            });
 
-        vrmManager.humanoidBone.hips.rotationQuaternion = cloneableQuaternionToQuaternion((
-            resultBoneRotations['hips']));
-        vrmManager.humanoidBone.spine.rotationQuaternion = cloneableQuaternionToQuaternion((
-            resultBoneRotations['spine']));
+            workerPose.boneRotations.then((resultBoneRotations) => {
+                const leftWristQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, true)]);
+                vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
+                const left = 'left';
+                for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+                    const key = left + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    if (vrmManager.humanoidBone[key]) {
+                        vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                            resultBoneRotations[key]);
+                    }
+                }
 
-        // console.debug("Results processed!");
-    });
+                const rightWristQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, false)]);
+                const right = 'right';
+                for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+                    const key = right + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    if (vrmManager.humanoidBone[key]) {
+                        vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                            resultBoneRotations[key]);
+                    }
+                }
+
+                vrmManager.humanoidBone.hips.rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations['hips']);
+                vrmManager.humanoidBone.spine.rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations['spine']);
+
+                const lr = ["left", "right"];
+                // Arms
+                for (const k of lr) {
+                    const key1 = `${k}UpperArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    const key2 = `${k}LowerArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    vrmManager.humanoidBone[key1]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[`${k}UpperArm`]);
+                    vrmManager.humanoidBone[key2]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[`${k}LowerArm`]);
+                }
+                // Legs
+                for (const k of lr) {
+                    const key1 = `${k}UpperLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    const key2 = `${k}LowerLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    vrmManager.humanoidBone[key1]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[`${k}UpperLeg`]);
+                    vrmManager.humanoidBone[key2]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[`${k}LowerLeg`]);
+                }
+            });
+
+            // console.debug("Results processed!");
+        });
 
     // Remove landmarks we don't want to draw.
     removeLandmarks(results);

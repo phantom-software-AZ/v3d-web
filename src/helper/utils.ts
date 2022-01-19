@@ -1201,7 +1201,7 @@ export function calcSphericalCoord0(
 
     return [theta, phi];
 }
-// Modified version, only allow -90 < phi < 90, but -180 < theta < 180.
+// Modified version for fingers, only allow -90 < phi < 90, but -180 < theta < 180.
 export function calcSphericalCoord(
     pos: Vector3, basis: Basis,
     testMode = false) {
@@ -1216,14 +1216,26 @@ export function calcSphericalCoord(
     const y = posInOriginal.y;
     const z = posInOriginal.z;
 
+    let theta, phi;
     if (x != 0) {
-        return [Math.sign(x) * Math.acos(z), Math.atan(y / x)];
+        theta = Math.sign(x) * Math.acos(z);
+        phi = Math.atan(y / x);
     } else {
-        if (y != 0)
-            return [Math.sign(y) * Math.acos(z), Math.PI / 2];
-        else
-            return [Math.acos(z), 0];
+        if (y != 0) {
+            theta = Math.sign(y) * Math.acos(z);
+            phi = Math.PI / 2;
+        } else {
+            theta = Math.acos(z);
+            phi = 0;
+        }
     }
+
+    // Special case for irregular landmakrs
+    if (theta < (-Math.PI / 6)) {
+        theta = Math.PI / 2 - theta;
+    }
+
+    return [theta, phi];
 }
 // Assuming rotation starts from (1, 0, 0) in given coordinate system.
 export function sphericalToQuaternion(basis: Basis, theta: number, phi: number) {
@@ -1234,4 +1246,8 @@ export function sphericalToQuaternion(basis: Basis, theta: number, phi: number) 
     const q2 = Quaternion.RotationAxis(y1, theta);
     return q2.multiply(q1.multiply(xTz));
 
+}
+
+export function projectVectorOnPlane(projPlane: Plane, vec: Vector3) {
+    return vec.subtract(projPlane.normal.scale(Vector3.Dot(vec, projPlane.normal)));
 }

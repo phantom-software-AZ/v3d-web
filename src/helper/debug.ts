@@ -163,7 +163,7 @@ export class DebugInfo {
     public updatePoseLandmarkSpheres(resultPoseLandmarks: NormalizedLandmarkList) {
         if (resultPoseLandmarks.length !== POSE_LANDMARK_LENGTH) return;
         for (let i = 0; i < POSE_LANDMARK_LENGTH; ++i) {
-            if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 16, 17, 18, 19, 20, 21, 22].includes(i)) continue;
+            if ([0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 17, 18, 19, 20, 21, 22].includes(i)) continue;
             this.poseLandmarkSpheres[i].position.set(
                 resultPoseLandmarks[i].x,
                 resultPoseLandmarks[i].y,
