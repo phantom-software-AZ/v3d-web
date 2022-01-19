@@ -869,12 +869,14 @@ export function printQuaternion(q: Quaternion, s?: string) {
 }
 
 export function quaternionBetweenBases(basis1: Basis, basis2: Basis) {
-    const rotationBasis1 = Quaternion.FromRotationMatrix(basis1.asMatrix());
-    const rotationBasis2 = Quaternion.FromRotationMatrix(basis2.asMatrix());
-    const basis1R = Matrix.Identity();
-    rotationBasis1.toRotationMatrix(basis1R);
-    const basis2R = Matrix.Identity();
-    rotationBasis2.toRotationMatrix(basis2R);
+    const rotationBasis1 = Quaternion.RotationQuaternionFromAxis(
+        basis1.x.clone(),
+        basis1.y.clone(),
+        basis1.z.clone());
+    const rotationBasis2 = Quaternion.RotationQuaternionFromAxis(
+        basis2.x.clone(),
+        basis2.y.clone(),
+        basis2.z.clone());
 
     const quaternion31 = rotationBasis1.clone().normalize();
     const quaternion31R = Quaternion.Inverse(quaternion31);
@@ -1185,8 +1187,8 @@ export function calcAvgPlane(pts: Vector3[], normal: Vector3): Vector3[] {
 export function calcSphericalCoord0(
     pos: Vector3, basis: Basis,
 ) {
-    const qToOriginal = Quaternion.Inverse(Quaternion.FromRotationMatrix(
-        basis.asMatrix())).normalize();
+    const qToOriginal = Quaternion.Inverse(Quaternion.RotationQuaternionFromAxis(
+        basis.x.clone(), basis.y.clone(), basis.z.clone())).normalize();
     const posInOriginal = Vector3.Zero();
     pos.rotateByQuaternionToRef(qToOriginal, posInOriginal);
     posInOriginal.normalize();
