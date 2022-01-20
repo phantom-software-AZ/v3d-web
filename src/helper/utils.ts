@@ -828,15 +828,6 @@ export class Basis {
             throw Error("Basis is not correct!");
     }
 
-    public asMatrix(): Matrix {
-        const ret = Matrix.Identity();
-        const x = this.x.clone().normalize();
-        const y = this.y.clone().normalize();
-        const z = this.z.clone().normalize();
-        Matrix.FromXYZAxesToRef(x, y, z, ret);
-        return ret;
-    }
-
     public rotateByQuaternion(q: Quaternion): Basis {
         const newBasisVectors: Vector33 = [Vector3.Zero(), Vector3.Zero(), Vector3.Zero()];
         this._data.map((v, i) => {
@@ -1145,28 +1136,6 @@ export function getBasis(obj: Vector33): Basis {
         axisX.scale(Vector3.Dot(c.subtract(a), axisX) / Vector3.Dot(axisX, axisX))
     );
     const axisY = c.subtract(cp).normalize();
-    return new Basis([axisX, axisY, axisZ]);
-}
-/*
- * Left handed for BJS.
- * Each object is defined by 3 points.
- * Assume a is origin, b points to +x, abc forms XY plane.
- * cp->c is +y, if not reverseY.
- */
-export function getBasis2(obj: Vector33, reverseY=false): Basis {
-    const [a, b, c] = obj;
-    const planeXY = Plane.FromPoints(a, b, c).normalize();
-    const axisX = b.subtract(a).normalize();
-    const axisZ = planeXY.normal;
-    // Project c onto ab
-    const cp = a.add(
-        axisX.scale(Vector3.Dot(c.subtract(a), axisX) / Vector3.Dot(axisX, axisX))
-    );
-    const axisY = c.subtract(cp).normalize();
-    if (reverseY) {
-        axisY.negateInPlace();
-        axisZ.negateInPlace();
-    }
     return new Basis([axisX, axisY, axisZ]);
 }
 // Project points to an average plane

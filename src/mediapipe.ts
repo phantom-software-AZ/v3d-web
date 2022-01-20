@@ -116,17 +116,17 @@ export function onResults(
         dt,
     )
         .then(async (r) => {
-            // const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+            const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
             // const resultFaceNormal = await workerPose.faceNormal;
             // const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
             // const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
             // const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
             // const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
             // const resultLeftHandNormals = await workerPose.leftHandNormals;
-            // const resultRightHandNormals = await workerPose.rightHandNormals;
+            const resultRightHandNormals = await workerPose.rightHandNormals;
             // const resultPoseNormals = await workerPose.poseNormals;
 
-            // if (debugInfo) {
+            if (debugInfo) {
             //     debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             //     debugInfo.updateFaceNormalArrows(
             //         [resultFaceNormal], resultPoseLandmarks);
@@ -138,10 +138,10 @@ export function onResults(
             //         resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
             //     // debugInfo.updateHandWristNormalArrows(
             //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
-            //     debugInfo.updateHandNormalArrows(
-            //         resultLeftHandNormals, null, resultPoseLandmarks);
+                debugInfo.updateHandNormalArrows(
+                    null, resultRightHandNormals, resultPoseLandmarks);
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
-            // }
+            }
 
             workerPose.mouthMorph.then((v) => {
                 vrmManager.morphing('A', v)
