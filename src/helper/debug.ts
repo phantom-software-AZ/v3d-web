@@ -14,19 +14,16 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Mesh, MeshBuilder, Nullable, Quaternion, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
+import {Mesh, MeshBuilder, Nullable, Scene, StandardMaterial, Vector3} from "@babylonjs/core";
 import {Color3, Vector4} from "@babylonjs/core/Maths";
 import {
-    Arrow3D,
-    cloneableQuaternionToQuaternion,
-    HAND_LANDMARK_LENGTH, HAND_LANDMARKS,
     initArray,
-    normalizedLandmarkToVector,
-    POSE_LANDMARK_LENGTH
 } from "./utils";
 import chroma from "chroma-js";
 import {NormalizedLandmark, NormalizedLandmarkList, POSE_LANDMARKS} from "@mediapipe/holistic";
-import {CloneableQuaternion, CloneableQuaternionList, Poses} from "../worker/pose-processing";
+import {Poses} from "../worker/pose-processing";
+import {CloneableQuaternion, CloneableQuaternionList, cloneableQuaternionToQuaternion} from "./quaternion";
+import {HAND_LANDMARK_LENGTH, HAND_LANDMARKS, normalizedLandmarkToVector, POSE_LANDMARK_LENGTH} from "./landmark";
 
 type createSphereOptions = {
     segments?: number;
@@ -41,6 +38,167 @@ type createSphereOptions = {
     backUVs?: Vector4;
     updatable?: boolean;
 };
+
+export class Arrow3D {
+    //Shape profile in XY plane
+    private readonly myShape: Vector3[] = [];
+    private readonly myPath: Vector3[] = [];
+    private arrowInstance: Nullable<Mesh> = null;
+
+    private _arrowRadius: number;
+    get arrowRadius(): number {
+        return this._arrowRadius;
+    }
+    set arrowRadius(value: number) {
+        this._arrowRadius = value;
+        this.updateTopShape();
+    }
+    private _n: number;
+    get n(): number {
+        return this._n;
+    }
+    set n(value: number) {
+        this._n = value;
+        this.updateTopShape();
+    }
+
+    private _arrowHeadLength: number;
+    get arrowHeadLength(): number {
+        return this._arrowHeadLength;
+    }
+    set arrowHeadLength(value: number) {
+        this._arrowHeadLength = value;
+        this.updatePath();
+    }
+    private _arrowHeadMaxSize: number;
+    get arrowStart(): Vector3 {
+        return this._arrowStart;
+    }
+    set arrowStart(value: Vector3) {
+        this._arrowStart = value;
+        this.updatePath();
+    }
+    private _arrowLength: number;
+    get arrowLength(): number {
+        return this._arrowLength;
+    }
+    set arrowLength(value: number) {
+        this._arrowLength = value;
+        this.updatePath();
+    }
+    private _arrowStart: Vector3;
+    get arrowHeadMaxSize(): number {
+        return this._arrowHeadMaxSize;
+    }
+    set arrowHeadMaxSize(value: number) {
+        this._arrowHeadMaxSize = value;
+        this.updatePath();
+    }
+    private _arrowDirection: Vector3;
+    get arrowDirection(): Vector3 {
+        return this._arrowDirection;
+    }
+    set arrowDirection(value: Vector3) {
+        this._arrowDirection = value;
+        this.updatePath();
+    }
+    private _material: StandardMaterial;
+    get material(): StandardMaterial {
+        return this._material;
+    }
+
+    constructor(
+        private scene: Scene,
+        arrowRadius = 0.5,
+        n = 30,
+        arrowHeadLength = 1.5,
+        arrowHeadMaxSize = 1.5,
+        arrowLength = 10,
+        arrowStart: Vector3,
+        arrowDirection: Vector3,
+        color?: number | string,
+    ) {
+        this._arrowRadius = arrowRadius;
+        this._n = n;
+        this._arrowHeadLength = arrowHeadLength;
+        this._arrowHeadMaxSize = arrowHeadMaxSize;
+        this._arrowLength = arrowLength;
+        this._arrowStart = arrowStart;
+        this._arrowDirection = arrowDirection;
+        this.updateTopShape();
+        this.updatePath();
+        this._material = new StandardMaterial("sphereMaterial", scene);
+        if (color) {
+            if (typeof color === 'number') color = `#${color.toString(16)}`;
+            this._material.diffuseColor = Color3.FromHexString(color);
+        }
+    }
+
+    private updateTopShape() {
+        const deltaAngle = 2 * Math.PI / this.n;
+        this.myShape.length = 0;
+        for (let i = 0; i <= this.n; i++) {
+            this.myShape.push(new Vector3(
+                this.arrowRadius * Math.cos(i * deltaAngle),
+                this.arrowRadius * Math.sin(i * deltaAngle),
+                0))
+        }
+        this.myShape.push(this.myShape[0]);  //close profile
+    }
+
+    private updatePath() {
+        const arrowBodyLength = this.arrowLength - this.arrowHeadLength;
+        this.arrowDirection.normalize();
+        const arrowBodyEnd = this.arrowStart.add(this.arrowDirection.scale(arrowBodyLength));
+        const arrowHeadEnd = arrowBodyEnd.add(this.arrowDirection.scale(this.arrowHeadLength));
+
+        this.myPath.length = 0;
+        this.myPath.push(this.arrowStart);
+        this.myPath.push(arrowBodyEnd);
+        this.myPath.push(arrowBodyEnd);
+        this.myPath.push(arrowHeadEnd);
+
+        if (!this.arrowInstance)
+            this.arrowInstance = MeshBuilder.ExtrudeShapeCustom(
+                "arrow",
+                {
+                    shape: this.myShape,
+                    path: this.myPath,
+                    updatable: true,
+                    scaleFunction: this.scaling.bind(this),
+                    sideOrientation: Mesh.DOUBLESIDE}, this.scene);
+        else
+            this.arrowInstance = MeshBuilder.ExtrudeShapeCustom(
+                "arrow",
+                {
+                    shape: this.myShape,
+                    path: this.myPath,
+                    scaleFunction: this.scaling.bind(this),
+                    instance: this.arrowInstance}, this.scene);
+        this.arrowInstance.material = this.material;
+    }
+
+    private scaling(index: number, distance: number): number {
+        switch (index) {
+            case 0:
+            case 1:
+                return 1;
+            case 2:
+                return this.arrowHeadMaxSize / this.arrowRadius;
+            case 3:
+                return 0;
+            default:
+                return 1;
+        }
+    }
+
+    public updateStartAndDirection(arrowStart: Vector3, arrowDirection: Vector3) {
+        this._arrowStart = arrowStart;
+        this._arrowDirection = arrowDirection.length() === 0 ?
+            Vector3.One() : arrowDirection;
+        this.updatePath();
+    }
+}
 
 export function makeSphere(
     scene: Scene,

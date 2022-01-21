@@ -31,83 +31,40 @@ import {
     POSE_LANDMARKS_RIGHT,
     Results
 } from "@mediapipe/holistic";
-import {Nullable, Plane, Quaternion, Vector3} from "@babylonjs/core";
+import {Curve3, Nullable, Plane, Quaternion, Vector3} from "@babylonjs/core";
 import {
-    AXIS,
-    Basis,
-    calcAvgPlane,
-    calcSphericalCoord,
-    calcSphericalCoord0,
-    cloneableQuaternionToQuaternion,
-    degreeBetweenVectors,
-    depthFirstSearch,
-    EuclideanHighPassFilter,
-    FACE_LANDMARK_LENGTH,
-    GaussianVectorFilter,
-    getBasis,
-    HAND_LANDMARK_LENGTH,
-    HAND_LANDMARKS,
-    handLandMarkToBoneName,
     initArray,
-    KalmanVectorFilter,
     KeysMatching,
-    normalizedLandmarkToVector,
-    OneEuroVectorFilter,
-    POSE_LANDMARK_LENGTH,
     projectVectorOnPlane,
-    quaternionBetweenBases,
-    quaternionToDegrees,
     ReadonlyKeys,
     remapRangeWithCap,
-    removeRotationAxisWithCap,
-    reverseRotation,
-    sphericalToQuaternion,
-    vectorToNormalizedLandmark
 } from "../helper/utils";
 import {TransformNodeTreeNode} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
+import {
+    CloneableResults, depthFirstSearch,
+    FACE_LANDMARK_LENGTH, FilteredVectorLandmark, FilteredVectorLandmark3, FilteredVectorLandmarkList,
+    HAND_LANDMARK_LENGTH, HAND_LANDMARKS, handLandMarkToBoneName, normalizedLandmarkToVector,
+    POSE_LANDMARK_LENGTH,
+    vectorToNormalizedLandmark
+} from "../helper/landmark";
+import {
+    AXIS,
+    calcSphericalCoord,
+    calcSphericalCoord0,
+    CloneableQuaternion,
+    CloneableQuaternionList,
+    CloneableQuaternionMap,
+    cloneableQuaternionToQuaternion, degreeBetweenVectors,
+    quaternionToDegrees,
+    removeRotationAxisWithCap,
+    reverseRotation,
+    sphericalToQuaternion
+} from "../helper/quaternion";
+import {Basis, calcAvgPlane, getBasis, quaternionBetweenBases} from "../helper/basis";
+import {VISIBILITY_THRESHOLD} from "../helper/filter";
 
-type FilteredVectorLandmark3 = [
-    FilteredVectorLandmark,
-    FilteredVectorLandmark,
-    FilteredVectorLandmark,
-];
-export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
-export class CloneableQuaternion {
-    public x: number = 0;
-    public y: number = 0;
-    public z: number = 0;
-    public w: number = 1;
 
-    private readonly _baseBasis: Basis;
-    get baseBasis(): Basis {
-        return this._baseBasis;
-    }
-
-    constructor(
-        q: Nullable<Quaternion>,
-        basis?: Basis
-    ) {
-        if (q) this.set(q);
-        this._baseBasis = basis ? basis : new Basis(null);
-    }
-
-    public set(q: Quaternion) {
-        this.x = q.x;
-        this.y = q.y;
-        this.z = q.z;
-        this.w = q.w;
-    }
-
-    public rotateBasis(q: Quaternion): Basis {
-        return this._baseBasis.rotateByQuaternion(q);
-    }
-}
-export interface CloneableQuaternionMap {
-    [key: string]: CloneableQuaternion
-}
-export type CloneableQuaternionList = CloneableQuaternion[];
 export class PoseKeyPoints {
-    public nose = new FilteredVectorLandmark();
     public top_face_oval = new FilteredVectorLandmark();
     public left_face_oval = new FilteredVectorLandmark();
     public bottom_face_oval = new FilteredVectorLandmark();
@@ -145,7 +102,6 @@ export class PoseKeyPoints {
 export type PosesKey = keyof Omit<Poses, KeysMatching<Poses, Function> | ReadonlyKeys<Poses>>;
 
 export class Poses {
-    public static readonly VISIBILITY_THRESHOLD: number = 0.5;
     public static readonly FACE_MESH_CONNECTIONS = [
         FACEMESH_LEFT_EYEBROW, FACEMESH_RIGHT_EYEBROW,
         FACEMESH_LEFT_EYE, FACEMESH_RIGHT_EYE,
@@ -156,7 +112,6 @@ export class Poses {
 
 
     private static readonly HAND_POSITION_SCALING = 0.8;
-    private static readonly HAND_HIGH_PASS_THRESHOLD = 0.002;
 
     /* Remap offsets to quaternions using arbitrary range.
      * IRIS_MP=MediaPipe Iris
@@ -167,8 +122,18 @@ export class Poses {
     private static readonly IRIS_BJS_X_RANGE = 0.28;
     private static readonly IRIS_BJS_Y_RANGE = 0.22;
 
-    private static readonly BLINK_MP_RANGE_LOW = 0.0155;
-    private static readonly BLINK_MP_RANGE_HIGH = 0.018;
+    private static readonly BLINK_EYE_WIDTH_CURVE_LOW = Curve3.CreateCatmullRomSpline([
+        new Vector3(0.105, 0.0189, 0),
+        new Vector3(0.058, 0.018, 0),
+        new Vector3(0.016,  0.0144, 0),
+        new Vector3(0.0105, 0.0165, 0),
+    ], 100);
+    private static readonly BLINK_EYE_WIDTH_CURVE_HIGH = Curve3.CreateCatmullRomSpline([
+        new Vector3(0.105, 0.0215, 0),
+        new Vector3(0.058, 0.0198, 0),
+        new Vector3(0.016,  0.015, 0),
+        new Vector3(0.0105, 0.0205, 0),
+    ], 100);
     private static readonly MOUTH_MP_RANGE_LOW = 0.001;
     private static readonly MOUTH_MP_RANGE_HIGH = 0.06;
 
@@ -190,7 +155,13 @@ export class Poses {
     private poseLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         POSE_LANDMARK_LENGTH, () => {
             return new FilteredVectorLandmark({
-                R: 0.1, Q: 1, type: 'Kalman', highPassThreshold: 0.002,
+                R: 1, Q: 1, type: 'Kalman',
+            });
+        });
+    private worldPoseLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
+        POSE_LANDMARK_LENGTH, () => {
+            return new FilteredVectorLandmark({
+                R: 1, Q: 1, type: 'Kalman',
             });  // 0.01, 0.6, 0.007
         });
     // Cannot use Vector3 directly since postMessage() erases all methods
@@ -207,8 +178,8 @@ export class Poses {
     private faceLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         FACE_LANDMARK_LENGTH, () => {
             return new FilteredVectorLandmark({
-                // oneEuroCutoff: 0.01, oneEuroBeta: 15, type: 'OneEuro', highPassThreshold: 0.002
-                R: 1, Q: 10, type: 'Kalman', highPassThreshold: 0.002,
+                // oneEuroCutoff: 0.01, oneEuroBeta: 15, type: 'OneEuro',
+                R: 1, Q: 10, type: 'Kalman',
                 gaussianSigma: 2
             });     // 0.01, 15, 0.002
         });
@@ -224,7 +195,7 @@ export class Poses {
     // Left Hand Landmarks
     private leftWristOffset: FilteredVectorLandmark =
         new FilteredVectorLandmark({
-            R: 0.1, Q: 2, type: 'Kalman', highPassThreshold: 0.002
+            R: 0.1, Q: 2, type: 'Kalman',
         });    // 0.01, 2, 0.008
     public inputLeftHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
         HAND_LANDMARK_LENGTH, () => {
@@ -233,7 +204,7 @@ export class Poses {
     private leftHandLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         HAND_LANDMARK_LENGTH, () => {
             return new FilteredVectorLandmark({
-                R: 1, Q: 10, type: 'Kalman', highPassThreshold: Poses.HAND_HIGH_PASS_THRESHOLD
+                R: 1, Q: 10, type: 'Kalman',
             });    // 0.001, 0.6
 
         });
@@ -246,7 +217,7 @@ export class Poses {
     // Right Hand Landmarks
     private rightWristOffset: FilteredVectorLandmark =
         new FilteredVectorLandmark({
-            R: 0.1, Q: 2, type: 'Kalman', highPassThreshold: 0.002
+            R: 0.1, Q: 2, type: 'Kalman',
         });    // 0.01, 2, 0.008
     public inputRightHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
         HAND_LANDMARK_LENGTH, () => {
@@ -255,7 +226,7 @@ export class Poses {
     private rightHandLandmarks: FilteredVectorLandmarkList = initArray<FilteredVectorLandmark>(
         HAND_LANDMARK_LENGTH, () => {
             return new FilteredVectorLandmark({
-                R: 1, Q: 10, type: 'Kalman', highPassThreshold: Poses.HAND_HIGH_PASS_THRESHOLD
+                R: 1, Q: 10, type: 'Kalman',
             });    // 0.001, 0.6
         });
     public cloneableRightHandLandmarks: NormalizedLandmarkList = initArray<NormalizedLandmark>(
@@ -335,8 +306,7 @@ export class Poses {
         return this._poseNormals;
     }
 
-
-    private midHipBase: Nullable<Vector3> = null;
+    public midHipOffset: NormalizedLandmark = {x: 0, y: 0, z: 0};
 
     constructor() {}
 
@@ -353,16 +323,16 @@ export class Poses {
         this.initBoneRotations();
     }
 
-    /*
+    /**
      * All MediaPipe inputs have the following conventions:
      *  - Left-right mirrored
      *  - Face towards -Z (towards camera) by default
      */
-    public process(results: CloneableResults, dt: number) {
+    public process(results: CloneableResults) {
         this.cloneableInputResults = results;
         if (!this.cloneableInputResults) return;
 
-        this.preProcessResults(dt);
+        this.preProcessResults();
 
         // Actual processing
         // Post filtered landmarks
@@ -450,7 +420,7 @@ export class Poses {
         const headBasis = this._boneRotations['head'].rotateBasis(
             this.applyQuaternionChain('neck', false));
         const quaternion = reverseRotation(quaternionBetweenBases(thisBasis, headBasis), AXIS.x);
-        quaternion.scaleInPlace(0.5);
+        quaternion.scaleInPlace(0.6);
         this._boneRotations['head'].set(quaternion);
         this._boneRotations['neck'].set(quaternion);
     }
@@ -519,15 +489,31 @@ export class Poses {
             leftIrisRotationYPR, rightIrisRotationYPR)));
     }
 
+    private findPoint(curve: Curve3, x: number, eps=0.001) {
+        const pts = curve.getPoints();
+        if (x > pts[0].x) return pts[0].y;
+        else if (x < pts[pts.length - 1].x) return pts[pts.length - 1].y;
+        for (let i = 0; i < pts.length; ++i) {
+            if (Math.abs(x - pts[i].x) < eps) return pts[i].y;
+        }
+        return 0;
+    }
+
     private calcExpressions() {
         if (!this.cloneableInputResults?.faceLandmarks) return;
 
         const leftEyeWidth = this._keyPoints.left_eye_inner.pos.subtract(this._keyPoints.left_eye_outer.pos).length();
+        console.log(leftEyeWidth,
+            this.findPoint(Poses.BLINK_EYE_WIDTH_CURVE_HIGH, leftEyeWidth),
+            this._keyPoints.left_eye_top.pos
+            .subtract(this._keyPoints.left_eye_bottom.pos)
+            .length() * Poses.EYE_WIDTH_BASELINE / leftEyeWidth);
         this._blinkLeft = 1 - remapRangeWithCap(
             this._keyPoints.left_eye_top.pos
                 .subtract(this._keyPoints.left_eye_bottom.pos)
                 .length() * Poses.EYE_WIDTH_BASELINE / leftEyeWidth,
-            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
+            this.findPoint(Poses.BLINK_EYE_WIDTH_CURVE_LOW, leftEyeWidth),
+            this.findPoint(Poses.BLINK_EYE_WIDTH_CURVE_HIGH, leftEyeWidth),
             0, 1
         );
         const rightEyeWidth = this._keyPoints.right_eye_inner.pos.subtract(this._keyPoints.right_eye_outer.pos).length();
@@ -535,7 +521,8 @@ export class Poses {
             this._keyPoints.right_eye_top.pos
                 .subtract(this._keyPoints.right_eye_bottom.pos)
                 .length() * Poses.EYE_WIDTH_BASELINE / rightEyeWidth,
-            Poses.BLINK_MP_RANGE_LOW, Poses.BLINK_MP_RANGE_HIGH,
+            this.findPoint(Poses.BLINK_EYE_WIDTH_CURVE_LOW, rightEyeWidth),
+            this.findPoint(Poses.BLINK_EYE_WIDTH_CURVE_HIGH, rightEyeWidth),
             0, 1
         );
         this._blinkAll = this.lRLink(this._blinkLeft, this._blinkRight);
@@ -568,10 +555,10 @@ export class Poses {
         // Neck and chest are derived from angle between spine and head.
         // Upper chest is not used.
 
-        const leftHip = this.poseLandmarks[POSE_LANDMARKS.LEFT_HIP].pos;
-        const rightHip = this.poseLandmarks[POSE_LANDMARKS.RIGHT_HIP].pos;
-        const leftShoulder = this.poseLandmarks[POSE_LANDMARKS.LEFT_SHOULDER].pos;
-        const rightShoulder = this.poseLandmarks[POSE_LANDMARKS.RIGHT_SHOULDER].pos;
+        const leftHip = this.worldPoseLandmarks[POSE_LANDMARKS.LEFT_HIP].pos;
+        const rightHip = this.worldPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP].pos;
+        const leftShoulder = this.worldPoseLandmarks[POSE_LANDMARKS.LEFT_SHOULDER].pos;
+        const rightShoulder = this.worldPoseLandmarks[POSE_LANDMARKS.RIGHT_SHOULDER].pos;
 
         this.poseNormals.length = 0;
 
@@ -614,9 +601,9 @@ export class Poses {
             if (!this.shallUpdateArm(isLeft)) continue;
 
             const upperArmKey = `${k}UpperArm`;
-            const shoulderLandmark = this.poseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_SHOULDER` as keyof typeof POSE_LANDMARKS]].pos;
-            const elbowLandmark = this.poseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_ELBOW` as keyof typeof POSE_LANDMARKS]].pos;
-            const wristLandmark = this.poseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_WRIST` as keyof typeof POSE_LANDMARKS]].pos;
+            const shoulderLandmark = this.worldPoseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_SHOULDER` as keyof typeof POSE_LANDMARKS]].pos;
+            const elbowLandmark = this.worldPoseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_ELBOW` as keyof typeof POSE_LANDMARKS]].pos;
+            const wristLandmark = this.worldPoseLandmarks[POSE_LANDMARKS[`${k.toUpperCase()}_WRIST` as keyof typeof POSE_LANDMARKS]].pos;
 
             const upperArmDir = elbowLandmark.subtract(shoulderLandmark).normalize();
             const upperArmBasis = this._boneRotations[upperArmKey].rotateBasis(
@@ -647,7 +634,7 @@ export class Poses {
             this._boneRotations[lowerArmKey].set(finalQuaternion);
         }
         // Update rotations on wrists
-        this.calcWristBones();
+        this.calcWristBones(false);
 
         // Legs and feet
         this.calcFeetBones();
@@ -658,9 +645,9 @@ export class Poses {
             const thisLandmarks = isLeft ? POSE_LANDMARKS_LEFT : POSE_LANDMARKS_RIGHT;
             const upperLegKey = `${k}UpperLeg`;
             const lowerLegKey = `${k}LowerLeg`;
-            const hipLandmark = this.poseLandmarks[thisLandmarks[`${k.toUpperCase()}_HIP` as keyof typeof thisLandmarks]].pos;
-            const kneeLandmark = this.poseLandmarks[thisLandmarks[`${k.toUpperCase()}_KNEE` as keyof typeof thisLandmarks]].pos;
-            const ankleLandmark = this.poseLandmarks[thisLandmarks[`${k.toUpperCase()}_ANKLE` as keyof typeof thisLandmarks]].pos;
+            const hipLandmark = this.worldPoseLandmarks[thisLandmarks[`${k.toUpperCase()}_HIP` as keyof typeof thisLandmarks]].pos;
+            const kneeLandmark = this.worldPoseLandmarks[thisLandmarks[`${k.toUpperCase()}_KNEE` as keyof typeof thisLandmarks]].pos;
+            const ankleLandmark = this.worldPoseLandmarks[thisLandmarks[`${k.toUpperCase()}_ANKLE` as keyof typeof thisLandmarks]].pos;
 
             const upperLegDir = kneeLandmark.subtract(hipLandmark).normalize();
             const upperLegBasis = this._boneRotations[upperLegKey].rotateBasis(
@@ -740,7 +727,7 @@ export class Poses {
             const isLeft = k === 'left';
             const wristVisilibity = this.cloneableInputResults?.poseLandmarks[
                 isLeft ? POSE_LANDMARKS.LEFT_WRIST : POSE_LANDMARKS.RIGHT_WRIST].visibility || 0;
-            if (wristVisilibity <= Poses.VISIBILITY_THRESHOLD) continue;
+            if (wristVisilibity <= VISIBILITY_THRESHOLD) continue;
 
             const vertices: FilteredVectorLandmark3[] = [
                 [v[HAND_LANDMARKS.WRIST], v[HAND_LANDMARKS.PINKY_MCP], v[HAND_LANDMARKS.INDEX_FINGER_MCP]],
@@ -771,7 +758,7 @@ export class Poses {
             ], rootNormal);
             const basis2 = getBasis([
                 projectedLandmarks[0],
-                projectedLandmarks[3],
+                projectedLandmarks[1],
                 projectedLandmarks[4]
             ]).rotateByQuaternion(this.applyQuaternionChain(HAND_LANDMARKS.WRIST, isLeft).conjugate());
             const wristRotationQuaternionRaw = quaternionBetweenBases(basis1, basis2);
@@ -828,10 +815,8 @@ export class Poses {
                     i < 4 ? AXIS.none : AXIS.x
                     :
                     i < 4 ? AXIS.xz : AXIS.xy;
-                const firstCapAxis = i < 4 ?
-                    AXIS.z : AXIS.y;
-                const secondCapAxis = i < 4 ?
-                    AXIS.y : AXIS.z;
+                const firstCapAxis = i < 4 ? AXIS.z : AXIS.y;
+                const secondCapAxis = i < 4 ? AXIS.y : AXIS.z;
                 thisRotationQuaternion =
                     removeRotationAxisWithCap(
                         sphericalToQuaternion(thisHandRotation.baseBasis, theta, phi),
@@ -848,14 +833,14 @@ export class Poses {
         if (!this.shallUpdateLegs()) return;
         const feet = {
             left: getBasis([
-                this.poseLandmarks[POSE_LANDMARKS_LEFT.LEFT_HEEL].pos,
-                this.poseLandmarks[POSE_LANDMARKS_LEFT.LEFT_FOOT_INDEX].pos,
-                this.poseLandmarks[POSE_LANDMARKS_LEFT.LEFT_ANKLE].pos
+                this.worldPoseLandmarks[POSE_LANDMARKS_LEFT.LEFT_HEEL].pos,
+                this.worldPoseLandmarks[POSE_LANDMARKS_LEFT.LEFT_FOOT_INDEX].pos,
+                this.worldPoseLandmarks[POSE_LANDMARKS_LEFT.LEFT_ANKLE].pos
             ]),
             right: getBasis([
-                this.poseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_HEEL].pos,
-                this.poseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_FOOT_INDEX].pos,
-                this.poseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_ANKLE].pos
+                this.worldPoseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_HEEL].pos,
+                this.worldPoseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_FOOT_INDEX].pos,
+                this.worldPoseLandmarks[POSE_LANDMARKS_RIGHT.RIGHT_ANKLE].pos
             ]),
         }
 
@@ -888,41 +873,41 @@ export class Poses {
             const footRotationQuaternion = reverseRotation(footRotationQuaternionRaw, AXIS.yz);
             thisFootRotation.set(footRotationQuaternion);
             const footRotationDegrees = quaternionToDegrees(footRotationQuaternion);
-            if (isLeft) {
-                console.log(footRotationDegrees);
-            }
         }
     }
 
-    private preProcessResults(dt: number) {
+    private preProcessResults() {
         // Preprocessing results
         // Create pose landmark list
         // @ts-ignore
-        const inputPoseLandmarks: NormalizedLandmarkList = this.cloneableInputResults.ea;    // Seems to be the new pose_world_landmark
-        // const inputPoseLandmarks: NormalizedLandmarkList = this.cloneableInputResults.poseLandmarks;    // Seems to be the new pose_world_landmark
-        if (inputPoseLandmarks) {
-            if (inputPoseLandmarks.length !== POSE_LANDMARK_LENGTH)
+        const inputWorldPoseLandmarks: NormalizedLandmarkList | undefined = this.cloneableInputResults?.ea;    // Seems to be the new pose_world_landmark
+        const inputPoseLandmarks: NormalizedLandmarkList | undefined = this.cloneableInputResults?.poseLandmarks;    // Seems to be the new pose_world_landmark
+        if (inputWorldPoseLandmarks && inputPoseLandmarks) {
+            if (inputWorldPoseLandmarks.length !== POSE_LANDMARK_LENGTH)
                 console.warn(`Pose Landmark list has a length less than ${POSE_LANDMARK_LENGTH}!`);
-            // Remember initial offset
-            // TODO: positional movement
-            if (!this.midHipBase &&
-                (inputPoseLandmarks[POSE_LANDMARKS.LEFT_HIP].visibility || 0) > Poses.VISIBILITY_THRESHOLD &&
-                (inputPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP].visibility || 0) > Poses.VISIBILITY_THRESHOLD
-            ) {
-                this.midHipBase =
-                    normalizedLandmarkToVector(inputPoseLandmarks[POSE_LANDMARKS.LEFT_HIP])
-                        .add(normalizedLandmarkToVector(inputPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP]))
-                        .scale(0.5);
-            }
 
             this.inputPoseLandmarks = this.preProcessLandmarks(
-                inputPoseLandmarks, this.poseLandmarks, dt);
+                inputWorldPoseLandmarks, this.worldPoseLandmarks);
+            this.preProcessLandmarks(
+                inputPoseLandmarks, this.poseLandmarks);
+
+            // Positional offset
+            if ((inputWorldPoseLandmarks[POSE_LANDMARKS.LEFT_HIP].visibility || 0) > VISIBILITY_THRESHOLD &&
+                (inputWorldPoseLandmarks[POSE_LANDMARKS.RIGHT_HIP].visibility || 0) > VISIBILITY_THRESHOLD
+            ) {
+                this.midHipOffset = vectorToNormalizedLandmark(
+                    this.poseLandmarks[POSE_LANDMARKS.LEFT_HIP].pos
+                        .add(this.poseLandmarks[POSE_LANDMARKS.RIGHT_HIP].pos)
+                        .scaleInPlace(0.5)
+                );
+                this.midHipOffset.z = 0;    // No depth info
+            }
         }
 
         const inputFaceLandmarks = this.cloneableInputResults?.faceLandmarks;    // Seems to be the new pose_world_landmark
         if (inputFaceLandmarks) {
             this.inputFaceLandmarks = this.preProcessLandmarks(
-                inputFaceLandmarks, this.faceLandmarks, dt);
+                inputFaceLandmarks, this.faceLandmarks);
         }
 
         // TODO: update wrist offset only when debugging
@@ -930,8 +915,7 @@ export class Poses {
         const inputRightHandLandmarks = this.cloneableInputResults?.rightHandLandmarks;
         if (inputLeftHandLandmarks) {
             this.leftWristOffset.updatePosition(
-                dt,
-                this.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos.subtract(
+                this.worldPoseLandmarks[POSE_LANDMARKS.LEFT_WRIST].pos.subtract(
                     normalizedLandmarkToVector(
                         inputLeftHandLandmarks[HAND_LANDMARKS.WRIST],
                         Poses.HAND_POSITION_SCALING,
@@ -939,13 +923,12 @@ export class Poses {
                 )
             );
             this.inputLeftHandLandmarks = this.preProcessLandmarks(
-                inputLeftHandLandmarks, this.leftHandLandmarks, dt,
+                inputLeftHandLandmarks, this.leftHandLandmarks,
                 this.leftWristOffset.pos, Poses.HAND_POSITION_SCALING);
         }
         if (inputRightHandLandmarks) {
             this.rightWristOffset.updatePosition(
-                dt,
-                this.poseLandmarks[POSE_LANDMARKS.RIGHT_WRIST].pos.subtract(
+                this.worldPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST].pos.subtract(
                     normalizedLandmarkToVector(
                         inputRightHandLandmarks[HAND_LANDMARKS.WRIST],
                         Poses.HAND_POSITION_SCALING,
@@ -953,7 +936,7 @@ export class Poses {
                 )
             );
             this.inputRightHandLandmarks = this.preProcessLandmarks(
-                inputRightHandLandmarks, this.rightHandLandmarks, dt,
+                inputRightHandLandmarks, this.rightHandLandmarks,
                 this.rightWristOffset.pos, Poses.HAND_POSITION_SCALING);
         }
     }
@@ -961,7 +944,6 @@ export class Poses {
     private preProcessLandmarks(
         resultsLandmarks: NormalizedLandmark[],
         filteredLandmarks: FilteredVectorLandmarkList,
-        dt: number,
         offset = Vector3.Zero(),
         scaling = 1.
     ) {
@@ -974,7 +956,6 @@ export class Poses {
         // Noise filtering
         for (let i = 0; i < resultsLandmarks.length; ++i) {
             filteredLandmarks[i].updatePosition(
-                dt,
                 normalizedLandmarkToVector(resultsLandmarks[i]),
                 resultsLandmarks[i].visibility);
         }
@@ -1070,41 +1051,22 @@ export class Poses {
                     new Vector3(0.14320801411112857, 0.9890497926949048, -0.03566472016590984).normalize()
                 ]));
         // Thumb
-        // for (let i = 0; i < 4; ++i) {
-        //     ret.push(new CloneableQuaternion(
-        //         Quaternion.Identity(),
-        //         // new Basis([
-        //         //     new Vector3(isLeft ? 1 : -1, -1, -1),
-        //         //     new Vector3(isLeft ? -1 : 1, 1, 1),
-        //         //     new Vector3(isLeft ? -1 : 1, 1, -1),
-        //         // ])
-        //         getBasis(
-        //             [
-        //                 new Vector3(0, 0, 0),
-        //                 new Vector3(isLeft ? 0.7 : -0.7, -0.1, -1),
-        //                 new Vector3(-1, 0, isLeft ? -1 : 1)
-        //             ])
-        //     ));
-        // }
         // THUMB_CMC
         // THUMB_MCP
         // THUMB_IP
         for (let i = 1; i < 4; ++i) {
-
-            // const tMCP_X = new Vector3(isLeft ? 1 : -1, 0, -0.5);
-            // const tMCP_Z = new Vector3(0, 1, 0);
-            // const tMCP_Y = Vector3.Cross(tMCP_Z, tMCP_X);
             const tMCP_X = new Vector3(isLeft ? 1 : -1, 0, -1.5).normalize();
             const tMCP_Y = new Vector3(0, isLeft ? -1 : 1, 0);
             const tMCP_Z = Vector3.Cross(tMCP_X, tMCP_Y).normalize();
+            const basis = new Basis([
+                tMCP_X,
+                // new Vector3(0, 0, isLeft ? -1 : 1),
+                tMCP_Y,
+                tMCP_Z,
+            ]).rotateByQuaternion(Quaternion.FromEulerAngles(0, 0, isLeft ? 0.2 : -0.2));
             this._boneRotations[handLandMarkToBoneName(i, isLeft)] =
                 new CloneableQuaternion(
-                    Quaternion.Identity(), new Basis([
-                        tMCP_X,
-                        // new Vector3(0, 0, isLeft ? -1 : 1),
-                        tMCP_Y,
-                        tMCP_Z,
-                    ]));
+                    Quaternion.Identity(), basis);
         }
         // Index
         for (let i = 5; i < 8; ++i) {
@@ -1292,8 +1254,8 @@ export class Poses {
             isLeft ? POSE_LANDMARKS.LEFT_ELBOW : POSE_LANDMARKS.RIGHT_ELBOW].visibility || 0;
         const wristVisilibity = this.cloneableInputResults?.poseLandmarks[
             isLeft ? POSE_LANDMARKS.LEFT_WRIST : POSE_LANDMARKS.RIGHT_WRIST].visibility || 0;
-        return !(shoulderVisilibity <= Poses.VISIBILITY_THRESHOLD || elbowVisilibity <= Poses.VISIBILITY_THRESHOLD
-            || wristVisilibity <= Poses.VISIBILITY_THRESHOLD);
+        return !(shoulderVisilibity <= VISIBILITY_THRESHOLD || elbowVisilibity <= VISIBILITY_THRESHOLD
+            || wristVisilibity <= VISIBILITY_THRESHOLD);
 
     }
 
@@ -1308,99 +1270,13 @@ export class Poses {
                 isLeft ? POSE_LANDMARKS_LEFT.LEFT_FOOT_INDEX : POSE_LANDMARKS_RIGHT.RIGHT_FOOT_INDEX].visibility || 0;
             const heelVisilibity = this.cloneableInputResults?.poseLandmarks[
                 isLeft ? POSE_LANDMARKS_LEFT.LEFT_HEEL : POSE_LANDMARKS_RIGHT.RIGHT_HEEL].visibility || 0;
-            if (kneeVisilibity <= Poses.VISIBILITY_THRESHOLD || ankleVisilibity <= Poses.VISIBILITY_THRESHOLD
-                || footVisilibity <= Poses.VISIBILITY_THRESHOLD || heelVisilibity <= Poses.VISIBILITY_THRESHOLD)
+            if (kneeVisilibity <= VISIBILITY_THRESHOLD || ankleVisilibity <= VISIBILITY_THRESHOLD
+                || footVisilibity <= VISIBILITY_THRESHOLD || heelVisilibity <= VISIBILITY_THRESHOLD)
                 return false;
         }
         return true;
     }
 }
-
-enum LandmarkTimeIncrementMode {
-    Universal,
-    RealTime,
-}
-
-export interface FilteredLandmarkParams {
-    R?: number,
-    Q?: number,
-    oneEuroCutoff?: number,
-    oneEuroBeta?: number,
-    highPassThreshold: number,
-    type: string,
-    gaussianSigma?: number,
-}
-
-export class FilteredVectorLandmark {
-    private mainFilter: OneEuroVectorFilter | KalmanVectorFilter;
-    private gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
-    private highPassFilter: EuclideanHighPassFilter;
-    private _tIncrementMode = LandmarkTimeIncrementMode.Universal;
-
-    private _t = 0;
-    get t(): number {
-        return this._t;
-    }
-    set t(value: number) {
-        this._t = value;
-    }
-
-    private _pos = Vector3.Zero();
-    get pos(): Vector3 {
-        return this._pos;
-    }
-
-    public visibility : number | undefined = 0;
-
-    constructor(
-        params: FilteredLandmarkParams = {
-            oneEuroCutoff: 0.01,
-            oneEuroBeta: 0,
-            highPassThreshold: 0.003,
-            type: 'OneEuro'
-        }
-    ) {
-        if (params.type === "Kalman")
-            this.mainFilter = new KalmanVectorFilter(params.R, params.Q);
-        else if (params.type === "OneEuro")
-            this.mainFilter = new OneEuroVectorFilter(
-                this.t,
-                this.pos,
-                Vector3.Zero(),
-                params.oneEuroCutoff,
-                params.oneEuroBeta);
-        else
-            throw Error("Wrong filter type!");
-        if (params.gaussianSigma)
-            this.gaussianVectorFilter = new GaussianVectorFilter(5, params.gaussianSigma);
-        this.highPassFilter = new EuclideanHighPassFilter(params.highPassThreshold);
-    }
-
-    public updatePosition(dt: number, pos: Vector3, visibility?: number) {
-        if (this._tIncrementMode === LandmarkTimeIncrementMode.Universal)
-            this.t += 1;
-        else if (this._tIncrementMode === LandmarkTimeIncrementMode.RealTime)
-            this.t += dt;    // Assuming 60 fps
-
-        // Face Mesh has no visibility
-        if (visibility === undefined || visibility > Poses.VISIBILITY_THRESHOLD) {
-            pos = this.mainFilter.next(this.t, pos);
-
-            if (this.gaussianVectorFilter) {
-                this.gaussianVectorFilter.push(pos);
-                pos = this.gaussianVectorFilter.apply();
-            }
-
-            // this.highPassFilter.update(pos);
-            // this._pos = this.highPassFilter.value;
-            this._pos = pos;
-
-            this.visibility = visibility;
-        }
-    }
-}
-
-export type FilteredVectorLandmarkList = FilteredVectorLandmark[];
 
 const poseResults : Poses = new Poses();
 

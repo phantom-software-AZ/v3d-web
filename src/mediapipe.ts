@@ -41,20 +41,14 @@ import {
 } from "@mediapipe/holistic";
 import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
-import {CloneableQuaternion, Poses} from "./worker/pose-processing";
+import {Poses} from "./worker/pose-processing";
 import {Angle, Quaternion, Vector3} from "@babylonjs/core";
 import {debugInfo} from "./core";
-import {
-    Basis,
-    cloneableQuaternionToQuaternion,
-    FrameMonitor,
-    HAND_LANDMARKS, HAND_LANDMARKS_BONE_MAPPING, handLandMarkToBoneName, KeysMatching, printQuaternion, ReadonlyKeys,
-    remapDegreeWithCap
-} from "./helper/utils";
+import {KeysMatching} from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
-
-const frameMonitor = new FrameMonitor();
+import {HAND_LANDMARKS_BONE_MAPPING, normalizedLandmarkToVector} from "./helper/landmark";
+import {cloneableQuaternionToQuaternion} from "./helper/quaternion";
 
 function removeElements(
     landmarks: NormalizedLandmarkList, elements: number[]) {
@@ -107,15 +101,13 @@ export function onResults(
 
     // @ts-ignore: delete camera input to prevent accidental paint
     // TODO: !!!toggle on before release!!!
-    delete results.image;
+    // delete results.image;
 
     // Worker process
-    const dt = frameMonitor.sampleFrame();
     workerPose.process(
-        (({ segmentationMask, image, ...o }) => o)(results),    // Remove canvas properties
-        dt,
+        (({segmentationMask, image, ...o}) => o)(results),    // Remove canvas properties
     )
-        .then(async (r) => {
+        .then((r) => {
             // if (debugInfo) {
             //     const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
             //     const resultFaceNormal = await workerPose.faceNormal;
@@ -143,6 +135,9 @@ export function onResults(
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
             // }
 
+            workerPose.midHipOffset.then((v) => {
+                vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
+            });
             workerPose.mouthMorph.then((v) => {
                 vrmManager.morphing('A', v)
             });
@@ -212,7 +207,6 @@ export function onResults(
                         resultBoneRotations[footKey]);
                 }
             });
-
             // console.debug("Results processed!");
         });
 
@@ -245,13 +239,13 @@ export function onResults(
 
         // Only overwrite missing pixels.
         videoCanvasCtx.globalCompositeOperation = 'destination-atop';
-        // videoCanvasCtx.drawImage(
-        //     results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        videoCanvasCtx.drawImage(
+            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
 
         videoCanvasCtx.globalCompositeOperation = 'source-over';
     } else {
-        // videoCanvasCtx.drawImage(
-        //     results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        videoCanvasCtx.drawImage(
+            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
     }
 
     // Connect elbows to hands. Do this first so that the other graphics will draw

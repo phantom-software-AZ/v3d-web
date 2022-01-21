@@ -26,8 +26,6 @@ import "@babylonjs/gui";
 import "@babylonjs/inspector";
 import * as Comlink from "comlink";
 import {Poses} from "./worker/pose-processing";
-import {TransformNodeMap} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
-import {NodeWorldMatrixMap} from "./helper/utils";
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 
@@ -35,7 +33,8 @@ export let debugInfo: Nullable<DebugInfo>;
 export async function createScene(
     engine: Engine,
     workerPose: Comlink.Remote<Poses>) {
-    const vrmFile = 'testfiles/2078913627571329107.vrm';
+    // const vrmFile = 'testfiles/2078913627571329107.vrm';
+    const vrmFile = 'testfiles/Ashtra.vrm';
 
     // Create v3d core
     const v3DCore = new V3DCore(engine, new Scene(engine));

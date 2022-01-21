@@ -32,13 +32,13 @@ import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
 import {
-    DegToRad, quaternionToDegrees,
-    RadToDeg, test_calcSphericalCoord,
+    test_calcSphericalCoord,
     test_getBasis,
     test_quaternionBetweenBases3,
     test_quaternionBetweenVectors
-} from "./helper/utils";
+} from "./helper/test";
 import {Quaternion, Vector3} from "@babylonjs/core";
+import {DegToRad} from "./helper/quaternion";
 
 
 /*
