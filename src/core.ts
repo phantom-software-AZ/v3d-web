@@ -70,11 +70,6 @@ export async function createScene(
     // Model Transformation
     vrmManager.rootMesh.translate(new Vector3(1, 0, 0), 1);
     vrmManager.rootMesh.rotationQuaternion = Quaternion.RotationYawPitchRoll(0, 0, 0);
-    // vrmManager.rootMesh.rotation = new Vector3(0, 135, 0);
-
-    // Work with HumanoidBone
-    vrmManager.humanoidBone.leftUpperArm.addRotation(0, -0.5, 0);
-    vrmManager.humanoidBone.head.addRotation(0.1, 0, 0);
 
     // Work with BlendShape(MorphTarget)
     // vrmManager.morphing('Joy', 1.0);

@@ -107,7 +107,7 @@ export function onResults(
 
     // @ts-ignore: delete camera input to prevent accidental paint
     // TODO: !!!toggle on before release!!!
-    // delete results.image;
+    delete results.image;
 
     // Worker process
     const dt = frameMonitor.sampleFrame();
@@ -116,17 +116,17 @@ export function onResults(
         dt,
     )
         .then(async (r) => {
-            const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
-            // const resultFaceNormal = await workerPose.faceNormal;
-            // const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
-            // const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
-            // const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
-            // const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
-            // const resultLeftHandNormals = await workerPose.leftHandNormals;
-            const resultRightHandNormals = await workerPose.rightHandNormals;
-            // const resultPoseNormals = await workerPose.poseNormals;
-
-            if (debugInfo) {
+            // if (debugInfo) {
+            //     const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+            //     const resultFaceNormal = await workerPose.faceNormal;
+            //     const resultIrisQuaternions = await workerPose.irisQuaternion;
+            //     const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
+            //     const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
+            //     const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
+            //     const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
+            //     const resultLeftHandNormals = await workerPose.leftHandNormals;
+            //     const resultRightHandNormals = await workerPose.rightHandNormals;
+            //     const resultPoseNormals = await workerPose.poseNormals;
             //     debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
             //     debugInfo.updateFaceNormalArrows(
             //         [resultFaceNormal], resultPoseLandmarks);
@@ -138,10 +138,10 @@ export function onResults(
             //         resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
             //     // debugInfo.updateHandWristNormalArrows(
             //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
-                debugInfo.updateHandNormalArrows(
-                    null, resultRightHandNormals, resultPoseLandmarks);
+            //     debugInfo.updateHandNormalArrows(
+            //         resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
-            }
+            // }
 
             workerPose.mouthMorph.then((v) => {
                 vrmManager.morphing('A', v)
@@ -163,9 +163,6 @@ export function onResults(
             });
 
             workerPose.boneRotations.then((resultBoneRotations) => {
-                const leftWristQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, true)]);
-                vrmManager.humanoidBone.leftHand.rotationQuaternion = leftWristQuaternion;
                 const left = 'left';
                 for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
                     const key = left + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
@@ -175,8 +172,6 @@ export function onResults(
                     }
                 }
 
-                const rightWristQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations[handLandMarkToBoneName(HAND_LANDMARKS.WRIST, false)]);
                 const right = 'right';
                 for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
                     const key = right + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
@@ -190,25 +185,31 @@ export function onResults(
                     resultBoneRotations['hips']);
                 vrmManager.humanoidBone.spine.rotationQuaternion = cloneableQuaternionToQuaternion(
                     resultBoneRotations['spine']);
+                vrmManager.humanoidBone.neck.rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations['neck']);
+                vrmManager.humanoidBone.head.rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations['head']);
 
                 const lr = ["left", "right"];
                 // Arms
                 for (const k of lr) {
-                    const key1 = `${k}UpperArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    const key2 = `${k}LowerArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    vrmManager.humanoidBone[key1]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[`${k}UpperArm`]);
-                    vrmManager.humanoidBone[key2]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[`${k}LowerArm`]);
-                }
-                // Legs
-                for (const k of lr) {
-                    const key1 = `${k}UpperLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    const key2 = `${k}LowerLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    vrmManager.humanoidBone[key1]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[`${k}UpperLeg`]);
-                    vrmManager.humanoidBone[key2]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[`${k}LowerLeg`]);
+                    const upperArmKey = `${k}UpperArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    const lowerArmKey = `${k}LowerArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    vrmManager.humanoidBone[upperArmKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[upperArmKey]);
+                    vrmManager.humanoidBone[lowerArmKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[lowerArmKey]);
+                    // Legs
+                    const upperLegKey = `${k}UpperLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    const lowerLegKey = `${k}LowerLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    vrmManager.humanoidBone[upperLegKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[upperLegKey]);
+                    vrmManager.humanoidBone[lowerLegKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[lowerLegKey]);
+                    // Feet
+                    const footKey = `${k}Foot` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+                    vrmManager.humanoidBone[footKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                        resultBoneRotations[footKey]);
                 }
             });
 
@@ -224,13 +225,6 @@ export function onResults(
     // Draw the overlays.
     videoCanvasCtx.save();
     videoCanvasCtx.clearRect(0, 0, videoCanvasElement.width, videoCanvasElement.height);
-    const {
-        offsetX,
-        offsetY,
-        width,
-        height
-    } = contain(videoCanvasElement.width, videoCanvasElement.height, results.image.width, results.image.height,
-        0, 0);
 
     if (results.segmentationMask) {
         videoCanvasCtx.drawImage(
@@ -251,13 +245,13 @@ export function onResults(
 
         // Only overwrite missing pixels.
         videoCanvasCtx.globalCompositeOperation = 'destination-atop';
-        videoCanvasCtx.drawImage(
-            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        // videoCanvasCtx.drawImage(
+        //     results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
 
         videoCanvasCtx.globalCompositeOperation = 'source-over';
     } else {
-        videoCanvasCtx.drawImage(
-            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        // videoCanvasCtx.drawImage(
+        //     results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
     }
 
     // Connect elbows to hands. Do this first so that the other graphics will draw

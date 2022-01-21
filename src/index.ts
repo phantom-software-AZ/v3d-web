@@ -86,6 +86,7 @@ spinner.ontransitionend = () => {
 
 window.addEventListener('load', async (e) => {
     console.log("Onload");
+    // TODO Debug
     // @ts-ignore
     window.r = quaternionToDegrees;
     // @ts-ignore

@@ -50,6 +50,11 @@ const config = [
             filename: '[name].module.js',
             path: path.resolve(__dirname, 'dist'),
         },
+        externals: [
+            /^@babylonjs.*$/,
+            /^v3d-core.*$/,
+            /^@mediapipe.*$/,
+        ],
     }),
     // ES6
     merge(baseConfig, {
@@ -64,6 +69,11 @@ const config = [
         experiments: {
             outputModule: true,
         },
+        externals: [
+            /^@babylonjs.*$/,
+            /^v3d-core.*$/,
+            /^@mediapipe.*$/,
+        ],
         externalsType: 'module',
     }),
     // browser global
@@ -76,6 +86,11 @@ const config = [
             filename: '[name].js',
             path: resolve(__dirname, 'dist'),
         },
+        externals: [
+            /^@babylonjs.*$/,
+            /^v3d-core.*$/,
+            /^@mediapipe.*$/,
+        ],
     }),
 ];
 

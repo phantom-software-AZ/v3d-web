@@ -229,10 +229,11 @@ export class DebugInfo {
         resultFaceMeshIndexLandmarks: number[][],
         resultFaceMeshLandmarks: NormalizedLandmarkList[]) {
         const toShow = [
-            [],[],
+            [0],[0],
             [9, 4, 15, 12], [0, 4, 8, 12],
-            [0, 1, 2, 3], [0, 1, 2, 3],
+            [0], [0],
             [24, 25, 26, 34, 35, 36],
+            [0, 6, 18, 30]
         ];
         if (resultFaceMeshIndexLandmarks.length !== 0 && !this.faceMeshLandmarkSpheres)
             this.faceMeshLandmarkSpheres = this.initFaceMeshLandmarks(resultFaceMeshIndexLandmarks);
@@ -240,7 +241,7 @@ export class DebugInfo {
             resultFaceMeshLandmarks.length !== this.faceMeshLandmarkSpheres.length) return;
         for (let i = 0; i < this.faceMeshLandmarkSpheres.length; ++i) {
             for (let j = 0; j < this.faceMeshLandmarkSpheres[i].length; ++j) {
-                if (!toShow[i].includes(j)) continue;
+                if (toShow[i].length > 0 && !toShow[i].includes(j)) continue;
                 this.faceMeshLandmarkSpheres[i][j].position.set(
                     resultFaceMeshLandmarks[i][j].x,
                     resultFaceMeshLandmarks[i][j].y,

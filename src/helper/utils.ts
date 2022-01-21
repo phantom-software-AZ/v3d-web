@@ -30,6 +30,7 @@ import {
 } from "@babylonjs/core";
 import {NormalizedLandmark} from "@mediapipe/holistic";
 import {CloneableQuaternion} from "../worker/pose-processing";
+import KalmanFilter from 'kalmanjs';
 
 export function initArray<T>(length: number, initializer: (i: number) => T) {
     let arr = new Array<T>(length);
@@ -67,50 +68,7 @@ export const gaussianKernel1d = (function () {
 
 /*
  * Converted from https://github.com/jaantollander/OneEuroFilter.
- * Licensed under MIT.
  */
-export class OneEuroFilter {
-    constructor(
-        public t_prev: number,
-        public x_prev: number,
-        private dx_prev = 0.0,
-        private readonly min_cutoff = 1.0,
-        private readonly beta = 0.0,
-        private readonly d_cutoff = 1.0
-    ) {
-    }
-
-    private static smoothing_factor(t_e: number, cutoff: number) {
-        const r = 2 * Math.PI * cutoff * t_e;
-        return r / (r + 1);
-    }
-
-    private static exponential_smoothing(a: number, x: number, x_prev: number) {
-        return a * x + (1 - a) * x_prev;
-    }
-
-    public next(t: number, x: number) {
-        const t_e = t - this.t_prev;
-
-        // The filtered derivative of the signal.
-        const a_d = OneEuroFilter.smoothing_factor(t_e, this.d_cutoff);
-        const dx = (x - this.x_prev) / t_e;
-        const dx_hat = OneEuroFilter.exponential_smoothing(a_d, dx, this.dx_prev);
-
-        // The filtered signal.
-        const cutoff = this.min_cutoff + this.beta * Math.abs(dx_hat);
-        const a = OneEuroFilter.smoothing_factor(t_e, cutoff);
-        const x_hat = OneEuroFilter.exponential_smoothing(a, x, this.x_prev);
-
-        // Memorize the previous values.
-        this.x_prev = x_hat;
-        this.dx_prev = dx_hat;
-        this.t_prev = t;
-
-        return x_hat;
-    }
-}
-
 export class OneEuroVectorFilter {
     constructor(
         public t_prev: number,
@@ -150,6 +108,29 @@ export class OneEuroVectorFilter {
         this.t_prev = t;
 
         return x_hat;
+    }
+}
+export class KalmanVectorFilter {
+    private readonly kalmanFilterX;
+    private readonly kalmanFilterY;
+    private readonly kalmanFilterZ;
+    constructor(
+        public R = 0.1,
+        public Q = 3,
+    ) {
+        this.kalmanFilterX = new KalmanFilter({Q: Q, R: R});
+        this.kalmanFilterY = new KalmanFilter({Q: Q, R: R});
+        this.kalmanFilterZ = new KalmanFilter({Q: Q, R: R});
+    }
+
+    public next(t: number, vec: Vector3) {
+        const newValues = [
+            this.kalmanFilterX.filter(vec.x),
+            this.kalmanFilterY.filter(vec.y),
+            this.kalmanFilterZ.filter(vec.z),
+        ]
+
+        return Vector3.FromArray(newValues);
     }
 }
 
@@ -768,6 +749,12 @@ export const exchangeRotationAxis = (
 
 export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never }[keyof T];
 
+export function setEqual<T>(as: Set<T>, bs: Set<T>) {
+    if (as.size !== bs.size) return false;
+    for (const a of as) if (!bs.has(a)) return false;
+    return true;
+}
+
 // type MethodKeysOfA = KeysMatching<A, Function>;
 
 export type IfEquals<X, Y, A = X, B = never> =
@@ -836,6 +823,58 @@ export class Basis {
         return new Basis(newBasisVectors);
     }
 
+    // Basis validity is not checked!
+    public negateAxes(axis:AXIS) {
+        const x = this.x.clone();
+        const y = this.y.clone();
+        const z = this.z.clone();
+        switch (axis) {
+            case AXIS.x:
+                x.negateInPlace();
+                break;
+            case AXIS.y:
+                y.negateInPlace();
+                break;
+            case AXIS.z:
+                z.negateInPlace();
+                break;
+            case AXIS.xy:
+                x.negateInPlace();
+                y.negateInPlace();
+                break;
+            case AXIS.yz:
+                y.negateInPlace();
+                z.negateInPlace();
+                break;
+            case AXIS.xz:
+                x.negateInPlace();
+                z.negateInPlace();
+                break;
+            case AXIS.xyz:
+                x.negateInPlace();
+                y.negateInPlace();
+                z.negateInPlace();
+                break;
+            default:
+                throw Error("Unknown axis!");
+        }
+
+        return new Basis([x, y, z]);
+    }
+
+    public transpose(order: [number, number, number]) {
+        // Sanity check
+        if (!setEqual<number>(new Set(order), new Set([0, 1, 2]))) {
+            console.error("Basis transpose failed: wrong input.");
+            return this;
+        }
+
+        const data = [this.x.clone(), this.y.clone(), this.z.clone()];
+        const newData = order.map(i => data[i]) as Vector33;
+
+        return new Basis(newData);
+    }
+
     private static getOriginalCoordVectors(): Vector33 {
         return Basis.ORIGINAL_CARTESIAN_BASIS_VECTORS.map(v => v.clone()) as Vector33;
     }
@@ -859,15 +898,25 @@ export function printQuaternion(q: Quaternion, s?: string) {
     console.log(s, vectorToNormalizedLandmark(quaternionToDegrees(q, true)));
 }
 
-export function quaternionBetweenBases(basis1: Basis, basis2: Basis) {
+export function quaternionBetweenBases(
+    basis1: Basis,
+    basis2: Basis,
+    extraQuaternion? : Quaternion
+) {
+    let thisBasis1 = basis1, thisBasis2 = basis2;
+    if (extraQuaternion !== undefined) {
+        const extraQuaternionR = Quaternion.Inverse(extraQuaternion);
+        thisBasis1 = basis1.rotateByQuaternion(extraQuaternionR);
+        thisBasis2 = basis2.rotateByQuaternion(extraQuaternionR);
+    }
     const rotationBasis1 = Quaternion.RotationQuaternionFromAxis(
-        basis1.x.clone(),
-        basis1.y.clone(),
-        basis1.z.clone());
+        thisBasis1.x.clone(),
+        thisBasis1.y.clone(),
+        thisBasis1.z.clone());
     const rotationBasis2 = Quaternion.RotationQuaternionFromAxis(
-        basis2.x.clone(),
-        basis2.y.clone(),
-        basis2.z.clone());
+        thisBasis2.x.clone(),
+        thisBasis2.y.clone(),
+        thisBasis2.z.clone());
 
     const quaternion31 = rotationBasis1.clone().normalize();
     const quaternion31R = Quaternion.Inverse(quaternion31);
@@ -1221,4 +1270,8 @@ export function sphericalToQuaternion(basis: Basis, theta: number, phi: number) 
 
 export function projectVectorOnPlane(projPlane: Plane, vec: Vector3) {
     return vec.subtract(projPlane.normal.scale(Vector3.Dot(vec, projPlane.normal)));
+}
+export function round(value: number, precision: number) {
+    const multiplier = Math.pow(10, precision || 0);
+    return Math.round(value * multiplier) / multiplier;
 }
