@@ -185,7 +185,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec10 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q11, vec10);
-    const [rady1, radz1] = calcSphericalCoord(vec10, basis0, true);
+    const [rady1, radz1] = calcSphericalCoord(vec10, basis0);
     const vec11 = Vector3.Zero();
     const q12 = sphericalToQuaternion(basis0, rady1, radz1);
     basis0.x.rotateByQuaternionToRef(q12, vec11);
@@ -198,7 +198,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec20 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q21, vec20);
-    const [rady2, radz2] = calcSphericalCoord(vec20, basis0, true);
+    const [rady2, radz2] = calcSphericalCoord(vec20, basis0);
     const vec21 = Vector3.Zero();
     const q22 = sphericalToQuaternion(basis0, rady2, radz2);
     basis0.x.rotateByQuaternionToRef(q22, vec21);
@@ -211,7 +211,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec30 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q31, vec30);
-    const [rady3, radz3] = calcSphericalCoord(vec30, basis0, true);
+    const [rady3, radz3] = calcSphericalCoord(vec30, basis0);
     const vec31 = Vector3.Zero();
     const q32 = sphericalToQuaternion(basis0, rady3, radz3);
     basis0.x.rotateByQuaternionToRef(q32, vec31);
@@ -224,7 +224,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec40 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q41, vec40);
-    const [rady4, radz4] = calcSphericalCoord(vec40, basis0, true);
+    const [rady4, radz4] = calcSphericalCoord(vec40, basis0);
     const vec41 = Vector3.Zero();
     const q42 = sphericalToQuaternion(basis0, rady4, radz4);
     basis0.x.rotateByQuaternionToRef(q42, vec41);
@@ -237,7 +237,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec50 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q51, vec50);
-    const [rady5, radz5] = calcSphericalCoord(vec50, basis0, true);
+    const [rady5, radz5] = calcSphericalCoord(vec50, basis0);
     const vec51 = Vector3.Zero();
     const q52 = sphericalToQuaternion(basis0, rady5, radz5);
     basis0.x.rotateByQuaternionToRef(q52, vec51);
@@ -250,7 +250,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec60 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q61, vec60);
-    const [rady6, radz6] = calcSphericalCoord(vec60, basis0, true);
+    const [rady6, radz6] = calcSphericalCoord(vec60, basis0);
     const vec61 = Vector3.Zero();
     const q62 = sphericalToQuaternion(basis0, rady6, radz6);
     basis0.x.rotateByQuaternionToRef(q62, vec61);
@@ -263,7 +263,7 @@ export function test_calcSphericalCoord(rotationVector = Vector3.Zero()) {
     );
     const vec70 = Vector3.Zero();
     vec0.rotateByQuaternionToRef(q71, vec70);
-    const [rady7, radz7] = calcSphericalCoord(vec70, basis0, true);
+    const [rady7, radz7] = calcSphericalCoord(vec70, basis0);
     const vec71 = Vector3.Zero();
     const q72 = sphericalToQuaternion(basis0, rady7, radz7);
     basis0.x.rotateByQuaternionToRef(q72, vec71);

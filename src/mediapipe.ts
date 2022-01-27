@@ -43,7 +43,7 @@ import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
 import {Angle, Quaternion, Vector3} from "@babylonjs/core";
-import {debugInfo} from "./core";
+import {debugInfo, updateBuffer, updatePose, updateSpringBones} from "./core";
 import {KeysMatching} from "./helper/utils";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
@@ -106,10 +106,11 @@ export function onResults(
     // Worker process
     workerPose.process(
         (({segmentationMask, image, ...o}) => o)(results),    // Remove canvas properties
+        Comlink.proxy(updateBuffer)
     )
-        .then((r) => {
+        // .then(async (r) => {
             // if (debugInfo) {
-            //     const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+                // const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
             //     const resultFaceNormal = await workerPose.faceNormal;
             //     const resultIrisQuaternions = await workerPose.irisQuaternion;
             //     const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
@@ -131,84 +132,20 @@ export function onResults(
             //     // debugInfo.updateHandWristNormalArrows(
             //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             //     debugInfo.updateHandNormalArrows(
-            //         resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
+            //         resultLeftHandNormals, null, resultPoseLandmarks);
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
             // }
 
-            workerPose.midHipOffset.then((v) => {
-                vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
-            });
-            workerPose.mouthMorph.then((v) => {
-                vrmManager.morphing('A', v)
-            });
-            workerPose.blinkAll.then((v) => {
-                vrmManager.morphing('Blink', v)
-            });
-            // vrmManager.morphing('Blink_L', await workerPose.blinkLeft);
-            // vrmManager.morphing('Blink_R', await workerPose.blinkRight);
+            // workerPose.midHipOffset.then((v) => {
+            //     vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
+            // });
 
-            // TODO: option: iris left/right/sync
-            workerPose.irisQuaternion.then((resultIrisRotations) => {
-                if (vrmManager.humanoidBone.leftEye)
-                    vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultIrisRotations[2]);
-                if (vrmManager.humanoidBone.rightEye)
-                    vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultIrisRotations[2]);
-            });
-
-            workerPose.boneRotations.then((resultBoneRotations) => {
-                const left = 'left';
-                for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
-                    const key = left + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    if (vrmManager.humanoidBone[key]) {
-                        vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                            resultBoneRotations[key]);
-                    }
-                }
-
-                const right = 'right';
-                for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
-                    const key = right + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    if (vrmManager.humanoidBone[key]) {
-                        vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                            resultBoneRotations[key]);
-                    }
-                }
-
-                vrmManager.humanoidBone.hips.rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations['hips']);
-                vrmManager.humanoidBone.spine.rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations['spine']);
-                vrmManager.humanoidBone.neck.rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations['neck']);
-                vrmManager.humanoidBone.head.rotationQuaternion = cloneableQuaternionToQuaternion(
-                    resultBoneRotations['head']);
-
-                const lr = ["left", "right"];
-                // Arms
-                for (const k of lr) {
-                    const upperArmKey = `${k}UpperArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    const lowerArmKey = `${k}LowerArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    vrmManager.humanoidBone[upperArmKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[upperArmKey]);
-                    vrmManager.humanoidBone[lowerArmKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[lowerArmKey]);
-                    // Legs
-                    const upperLegKey = `${k}UpperLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    const lowerLegKey = `${k}LowerLeg` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    vrmManager.humanoidBone[upperLegKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[upperLegKey]);
-                    vrmManager.humanoidBone[lowerLegKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[lowerLegKey]);
-                    // Feet
-                    const footKey = `${k}Foot` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-                    vrmManager.humanoidBone[footKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                        resultBoneRotations[footKey]);
-                }
-            });
+            // updatePose(vrmManager);
             // console.debug("Results processed!");
-        });
+
+            // Update spring bones
+            // updateSpringBones(vrmManager);
+        // });
 
     // Remove landmarks we don't want to draw.
     removeLandmarks(results);
@@ -361,28 +298,28 @@ export function createControlPanel(
             new StaticText({title: 'MediaPipe Holistic'}),
             fpsControl,
             new Toggle({title: 'Selfie Mode', field: 'selfieMode'}),
-            new SourcePicker({
-                onSourceChanged: () => {
-                    // Resets because the pose gives better results when reset between
-                    // source changes.
-                    holistic.reset();
-                },
-                onFrame:
-                    async (input: InputImage, size: Rectangle) => {
-                        // const aspect = size.height / size.width;
-                        // let width: number, height: number;
-                        // if (window.innerWidth > window.innerHeight) {
-                        //     height = window.innerHeight;
-                        //     width = height / aspect;
-                        // } else {
-                        //     width = window.innerWidth;
-                        //     height = width * aspect;
-                        // }
-                        // videoCanvasElement.width = width;
-                        // videoCanvasElement.height = height;
-                        await holistic.send({image: input});
-                    },
-            }),
+            // new SourcePicker({
+            //     onSourceChanged: () => {
+            //         // Resets because the pose gives better results when reset between
+            //         // source changes.
+            //         holistic.reset();
+            //     },
+            //     // onFrame:
+            //     //     (input: InputImage, size: Rectangle) => {
+            //     //         // const aspect = size.height / size.width;
+            //     //         // let width: number, height: number;
+            //     //         // if (window.innerWidth > window.innerHeight) {
+            //     //         //     height = window.innerHeight;
+            //     //         //     width = height / aspect;
+            //     //         // } else {
+            //     //         //     width = window.innerWidth;
+            //     //         //     height = width * aspect;
+            //     //         // }
+            //     //         // videoCanvasElement.width = width;
+            //     //         // videoCanvasElement.height = height;
+            //     //         // return holistic.send({image: input});
+            //     //     },
+            // }),
             new Slider({
                 title: 'Model Complexity',
                 field: 'modelComplexity',

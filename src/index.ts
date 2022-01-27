@@ -38,7 +38,7 @@ import {
     test_quaternionBetweenVectors
 } from "./helper/test";
 import {Quaternion, Vector3} from "@babylonjs/core";
-import {DegToRad} from "./helper/quaternion";
+import {DegToRad, quaternionToDegrees, RadToDeg} from "./helper/quaternion";
 
 
 /*
@@ -90,7 +90,7 @@ window.addEventListener('load', async (e) => {
     // @ts-ignore
     window.r = quaternionToDegrees;
     // @ts-ignore
-    window.q = Quaternion.FromEulerAngles;
+    window.q = Quaternion;
     // @ts-ignore
     window.rtd = RadToDeg;
     // @ts-ignore
@@ -101,11 +101,6 @@ window.addEventListener('load', async (e) => {
     test_calcSphericalCoord();
     test_calcSphericalCoord(new Vector3(
         DegToRad(5), DegToRad(89), DegToRad(36)));
-
-    // v3d
-    const vrmManager = await createScene(
-        engine,
-        workerPose);
 
     // MediaPipe
     const holistic = new Holistic();
@@ -125,6 +120,10 @@ window.addEventListener('load', async (e) => {
     // Present a control panel through which the user can manipulate the solution
     // options.
     createControlPanel(holistic, videoElement, controlsElement, activeEffect, fpsControl);
+
+    // v3d
+    const vrmManager = await createScene(
+        engine, workerPose, holistic);
 });
 
 

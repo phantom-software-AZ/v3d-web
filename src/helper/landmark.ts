@@ -16,20 +16,16 @@ Copyright (C) 2022  The v3d Authors.
 
 import {NormalizedLandmark, Results} from "@mediapipe/holistic";
 import {Nullable, Vector3} from "@babylonjs/core";
-import {GaussianVectorFilter, KalmanVectorFilter, OneEuroVectorFilter, VISIBILITY_THRESHOLD} from "./filter";
+import {
+    FilterParams,
+    GaussianVectorFilter,
+    KalmanVectorFilter,
+    OneEuroVectorFilter,
+    VISIBILITY_THRESHOLD
+} from "./filter";
 import {objectFlip} from "./utils";
 
-
-export interface FilteredLandmarkParams {
-    R?: number,
-    Q?: number,
-    oneEuroCutoff?: number,
-    oneEuroBeta?: number,
-    type: string,
-    gaussianSigma?: number,
-}
-
-export class FilteredVectorLandmark {
+export class FilteredLandmarkVector {
     private mainFilter: OneEuroVectorFilter | KalmanVectorFilter;
     private gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
 
@@ -49,7 +45,7 @@ export class FilteredVectorLandmark {
     public visibility : number | undefined = 0;
 
     constructor(
-        params: FilteredLandmarkParams = {
+        params: FilterParams = {
             oneEuroCutoff: 0.01,
             oneEuroBeta: 0,
             type: 'OneEuro'
@@ -89,12 +85,12 @@ export class FilteredVectorLandmark {
     }
 }
 
-export type FilteredVectorLandmarkList = FilteredVectorLandmark[];
+export type FilteredLandmarkVectorList = FilteredLandmarkVector[];
 
-export type FilteredVectorLandmark3 = [
-    FilteredVectorLandmark,
-    FilteredVectorLandmark,
-    FilteredVectorLandmark,
+export type FilteredLandmarkVector3 = [
+    FilteredLandmarkVector,
+    FilteredLandmarkVector,
+    FilteredLandmarkVector,
 ];
 export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
 

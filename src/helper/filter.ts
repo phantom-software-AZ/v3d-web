@@ -14,11 +14,21 @@ Copyright (C) 2022  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Vector3} from "@babylonjs/core";
+import {Quaternion, Vector3} from "@babylonjs/core";
 import KalmanFilter from "kalmanjs";
 
 export const VISIBILITY_THRESHOLD: number = 0.65;
 
+export interface FilterParams {
+    R?: number,
+    Q?: number,
+    oneEuroCutoff?: number,
+    oneEuroBeta?: number,
+    type: string,
+    gaussianSigma?: number,
+}
+
+// 1D Gaussian Kernel
 export const gaussianKernel1d = (function () {
     let sqr2pi = Math.sqrt(2 * Math.PI);
 
@@ -146,7 +156,7 @@ export class GaussianVectorFilter {
 
     public apply() {
         if (this.values.length !== this.size) return Vector3.Zero();
-        const ret = this.values[0].clone();
+        const ret = Vector3.Zero();
         const len0 = ret.length();
         for (let i = 0; i < this.size; ++i) {
             ret.addInPlace(this.values[i].scale(this.kernel[i]));

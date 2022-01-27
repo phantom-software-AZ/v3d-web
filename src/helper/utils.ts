@@ -18,7 +18,7 @@ import {
     Nullable,
     Plane,
     PrecisionDate,
-    Quaternion,
+    Quaternion, Vector2,
     Vector3
 } from "@babylonjs/core";
 import {
@@ -124,3 +124,61 @@ export function round(value: number, precision: number) {
     const multiplier = Math.pow(10, precision || 0);
     return Math.round(value * multiplier) / multiplier;
 }
+
+/**
+ * Simple fixed length FIFO queue.
+ */
+export class fixedLengthQueue<T> {
+    private _values: T[] = [];
+    get values(): T[] {
+        return this._values;
+    }
+
+    constructor(public readonly size: number) {}
+
+    public push(v: T) {
+        this.values.push(v);
+
+        if (this.values.length === this.size + 1) {
+            this.values.shift();
+        } else if (this.values.length > this.size + 1) {
+            console.warn(`Internal queue has length longer than size ${this.size}: Got length ${this.values.length}`);
+            this._values = this.values.slice(-this.size);
+        }
+    }
+
+    public concat(arr: T[]) {
+        this._values = this.values.concat(arr);
+
+        if (this.values.length > this.size) {
+            this._values = this.values.slice(-this.size);
+        }
+    }
+
+    public pop() {
+        return this.values.shift();
+    }
+
+    public first() {
+        if (this._values.length > 0)
+            return this.values[0];
+        else
+            return null;
+    }
+
+    public last() {
+        if (this._values.length > 0)
+            return this._values[this._values.length - 1];
+        else
+            return null;
+    }
+
+    public reset() {
+        this.values.length = 0;
+    }
+
+    public length() {
+        return this.values.length;
+    }
+}
+export const LR = ["left", "right"];
