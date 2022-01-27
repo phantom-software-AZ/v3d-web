@@ -27,12 +27,13 @@ import {objectFlip} from "./utils";
 
 export class FilteredLandmarkVector {
     private mainFilter: OneEuroVectorFilter | KalmanVectorFilter;
-    private gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
+    private readonly gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
 
     private _t = 0;
     get t(): number {
         return this._t;
     }
+
     set t(value: number) {
         this._t = value;
     }
@@ -42,7 +43,7 @@ export class FilteredLandmarkVector {
         return this._pos;
     }
 
-    public visibility : number | undefined = 0;
+    public visibility: number | undefined = 0;
 
     constructor(
         params: FilterParams = {
@@ -92,7 +93,9 @@ export type FilteredLandmarkVector3 = [
     FilteredLandmarkVector,
     FilteredLandmarkVector,
 ];
-export interface CloneableResults extends Omit<Results, 'segmentationMask'|'image'> {}
+
+export interface CloneableResults extends Omit<Results, 'segmentationMask' | 'image'> {
+}
 
 export const POSE_LANDMARK_LENGTH = 33;
 export const FACE_LANDMARK_LENGTH = 478;
@@ -107,7 +110,7 @@ export const normalizedLandmarkToVector = (
         reverseY ? -l.y * scaling : l.y * scaling,
         l.z * scaling);
 }
-export const vectorToNormalizedLandmark = (l: Vector3) : NormalizedLandmark => {
+export const vectorToNormalizedLandmark = (l: Vector3): NormalizedLandmark => {
     return {x: l.x, y: l.y, z: l.z};
 };
 
@@ -153,8 +156,9 @@ export const HAND_LANDMARKS_BONE_MAPPING = {
     LittleIntermediate: HAND_LANDMARKS.PINKY_PIP,
     LittleDistal: HAND_LANDMARKS.PINKY_DIP,
 };
-export const HAND_LANDMARKS_BONE_REVERSE_MAPPING: {[key:number] : string} = objectFlip(HAND_LANDMARKS_BONE_MAPPING);
+export const HAND_LANDMARKS_BONE_REVERSE_MAPPING: { [key: number]: string } = objectFlip(HAND_LANDMARKS_BONE_MAPPING);
 export type HandBoneMappingKey = keyof typeof HAND_LANDMARKS_BONE_MAPPING;
+
 export function handLandMarkToBoneName(landmark: number, isLeft: boolean) {
     if (!(landmark in HAND_LANDMARKS_BONE_REVERSE_MAPPING)) throw Error("Wrong landmark given!");
     return (isLeft ? 'left' : 'right') + HAND_LANDMARKS_BONE_REVERSE_MAPPING[landmark];

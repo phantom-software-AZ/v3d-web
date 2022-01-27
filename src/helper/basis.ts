@@ -20,6 +20,7 @@ import {AXIS, vectorsSameDirWithinEps} from "./quaternion";
 import {setEqual, validVector3} from "./utils";
 
 export type Vector33 = [Vector3, Vector3, Vector3];
+
 export class Basis {
     private static readonly ORIGINAL_CARTESIAN_BASIS_VECTORS: Vector33 = [
         new Vector3(1, 0, 0),
@@ -28,12 +29,15 @@ export class Basis {
     ];
 
     private readonly _data: Vector33 = Basis.getOriginalCoordVectors();
+
     get x(): Vector3 {
         return this._data[0];
     }
+
     get y(): Vector3 {
         return this._data[1];
     }
+
     get z(): Vector3 {
         return this._data[2];
     }
@@ -41,7 +45,7 @@ export class Basis {
     constructor(
         v33: Nullable<Vector33>,
         private readonly leftHanded = true,
-        private eps=1e-6
+        private eps = 1e-6
     ) {
         if (v33 && v33.every((v) => validVector3(v)))
             this.set(v33);
@@ -77,7 +81,7 @@ export class Basis {
     }
 
     // Basis validity is not checked!
-    public negateAxes(axis:AXIS) {
+    public negateAxes(axis: AXIS) {
         const x = this.x.clone();
         const y = this.y.clone();
         const z = this.z.clone();
@@ -133,24 +137,10 @@ export class Basis {
     }
 }
 
-/*
- * Calculate rotation between two local coordinate systems.
- */
-export function quaternionBetweenObj(
-    obj1: Vector33,
-    obj2: Vector33
-): Quaternion {
-    const basis1 = getBasis(obj1);
-    const basis2 = getBasis(obj2);
-
-    const quaternion = quaternionBetweenBases(basis1, basis2);
-    return quaternion;
-}
-
 export function quaternionBetweenBases(
     basis1: Basis,
     basis2: Basis,
-    extraQuaternion? : Quaternion
+    extraQuaternion?: Quaternion
 ) {
     let thisBasis1 = basis1, thisBasis2 = basis2;
     if (extraQuaternion !== undefined) {
@@ -170,8 +160,7 @@ export function quaternionBetweenBases(
     const quaternion31 = rotationBasis1.clone().normalize();
     const quaternion31R = Quaternion.Inverse(quaternion31);
     const quaternion32 = rotationBasis2.clone().normalize();
-    const quaternion3 = quaternion32.multiply(quaternion31R);
-    return quaternion3;
+    return quaternion32.multiply(quaternion31R);
 }
 
 /*
@@ -191,6 +180,7 @@ export function getBasis(obj: Vector33): Basis {
     const axisY = c.subtract(cp).normalize();
     return new Basis([axisX, axisY, axisZ]);
 }
+
 // Project points to an average plane
 export function calcAvgPlane(pts: Vector3[], normal: Vector3): Vector3[] {
     if (pts.length === 0) return [Vector3.Zero()];

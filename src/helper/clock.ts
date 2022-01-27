@@ -6,18 +6,22 @@ export class Clock {
     get autoStart(): boolean {
         return this._autoStart;
     }
+
     private _startTime: number;
     get startTime(): number {
         return this._startTime;
     }
+
     private _oldTime: number;
     get oldTime(): number {
         return this._oldTime;
     }
+
     private _elapsedTime: number;
     get elapsedTime(): number {
         return this._elapsedTime;
     }
+
     private _running: boolean;
     get running(): boolean {
         return this._running;
@@ -80,6 +84,6 @@ export class Clock {
     }
 }
 
-export function now() {
+function now() {
     return (typeof performance === 'undefined' ? Date : performance).now(); // see #10732
 }

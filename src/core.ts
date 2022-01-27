@@ -15,7 +15,7 @@ Copyright (C) 2021  The v3d Authors.
  */
 
 import {V3DCore} from "v3d-core/dist/src";
-import {ArcRotateCamera, MeshBuilder, Nullable, Quaternion, Scene, StandardMaterial} from "@babylonjs/core";
+import {ArcRotateCamera, Nullable, Quaternion, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
 import {DebugInfo} from "./helper/debug";
@@ -25,21 +25,20 @@ import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
 import * as Comlink from "comlink";
-import {CloneableQuaternionMapBuffer, Poses} from "./worker/pose-processing";
-import {Clock, now} from "./helper/clock";
+import {Poses} from "./worker/pose-processing";
+import {Clock} from "./helper/clock";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {HAND_LANDMARKS_BONE_MAPPING} from "./helper/landmark";
 import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
-import {fixedLengthQueue, KeysMatching} from "./helper/utils";
+import {KeysMatching} from "./helper/utils";
 import {CloneableQuaternionMap, cloneableQuaternionToQuaternion} from "./helper/quaternion";
-import {v3DSkyBox} from "v3d-core/dist/src/scene/skybox";
-import {InputImage} from "@mediapipe/control_utils";
 import {Holistic} from "@mediapipe/holistic";
+
 const IS_DEBUG = true;
 export let debugInfo: Nullable<DebugInfo>;
 let boneRotations: Nullable<CloneableQuaternionMap> = null,
-    holisticUpdate=false,
-    bonesNeedUpdate=false,
+    holisticUpdate = false,
+    bonesNeedUpdate = false,
     textDecode = new TextDecoder();
 
 const videoElement =
@@ -141,8 +140,6 @@ export async function createScene(
     // TODO: Debug only
     // @ts-ignore
     window['vrmManager'] = vrmManager;
-    // vrmManager.humanoidBone.head.rotationQuaternion = Quaternion.FromEulerAngles(0.5, 0, 0);
-    // vrmManager.scene.getTransformNodeByName("Body")?.setEnabled(false);
 
     // Debug
     if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
@@ -151,13 +148,9 @@ export async function createScene(
 }
 
 const clock = new Clock();
-export function updateSpringBonesNoForce(vrmManager: VRMManager) {
-    vrmManager.update(vrmManager.scene.getEngine().getDeltaTime(),
-        {dragForce: 1, stiffness: 0, gravityPower: 0});
-}
+
 export function updateSpringBones(vrmManager: VRMManager) {
     const deltaTime = clock.getDelta() * 1000;
-    // if (deltaTime < 10) return;
     vrmManager.update(deltaTime);
 }
 
@@ -176,8 +169,6 @@ export function updatePose(vrmManager: VRMManager) {
 
     vrmManager.morphing('A', boneRotations['mouth'].x);
     vrmManager.morphing('Blink', boneRotations['blink'].z)
-    // vrmManager.morphing('Blink_L', await workerPose.blinkLeft);
-    // vrmManager.morphing('Blink_R', await workerPose.blinkRight);
 
     // TODO: option: iris left/right/sync
     if (vrmManager.humanoidBone.leftEye)
@@ -188,7 +179,7 @@ export function updatePose(vrmManager: VRMManager) {
             boneRotations['iris']);
 
     const left = 'left';
-    for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+    for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
         const key = left + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
         if (vrmManager.humanoidBone[key]) {
             vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
@@ -197,7 +188,7 @@ export function updatePose(vrmManager: VRMManager) {
     }
 
     const right = 'right';
-    for (const [k, v] of Object.entries(HAND_LANDMARKS_BONE_MAPPING)) {
+    for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
         const key = right + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
         if (vrmManager.humanoidBone[key]) {
             vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(

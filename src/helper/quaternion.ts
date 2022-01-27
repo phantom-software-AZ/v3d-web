@@ -14,7 +14,7 @@ Copyright (C) 2022  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Nullable, Quaternion, Angle, Matrix, Vector3, Curve3, Plane} from "@babylonjs/core";
+import {Nullable, Quaternion, Angle, Vector3, Plane} from "@babylonjs/core";
 import {rangeCap} from "./utils";
 import {Basis, quaternionBetweenBases} from "./basis";
 import {vectorToNormalizedLandmark} from "./landmark";
@@ -41,6 +41,7 @@ export class CloneableQuaternionLite {
         }
     }
 }
+
 export class CloneableQuaternion extends CloneableQuaternionLite {
     private readonly _baseBasis: Basis;
     get baseBasis(): Basis {
@@ -67,57 +68,10 @@ export class CloneableQuaternion extends CloneableQuaternionLite {
     }
 }
 
-/**
- * Catmull-Rom Spline interpolated rotation angles.
- * Handles unevenly timed frames.
- */
-export class CloneableRotationAngleCurve3 {
-    private _rotationQuaternions: CloneableQuaternionLite[] = [];
-    private _pointsX: Vector3[] = [];
-    get pointsX(): Vector3[] {
-        return this._pointsX;
-    }
-    private _pointsY: Vector3[] = [];
-    get pointsY(): Vector3[] {
-        return this._pointsY;
-    }
-    private _pointsZ: Vector3[] = [];
-    get pointsZ(): Vector3[] {
-        return this._pointsZ;
-    }
-
-    constructor(public curveLength: number) {
-        if (!Number.isSafeInteger(curveLength)) {
-            console.warn("Curve length is not an integer!");
-            this.curveLength = Math.floor(curveLength);
-        }
-    }
-
-    public createCurvePoints(
-        qs: Vector3[],
-        ts: number[],
-    ) {
-        // Sanity check
-        if (qs.length !== ts.length || ts.length < 4 ||!ts.every((v, i, self) => {
-            if (i < 1) return true;
-            else return v > self[i - 1];
-        })) return;
-
-        this._pointsX = Curve3.CreateCatmullRomSpline(
-            qs.map((v, i) => new Vector3(ts[i], v.x, 0)),
-            this.curveLength, false).getPoints();
-        this._pointsY = Curve3.CreateCatmullRomSpline(
-            qs.map((v, i) => new Vector3(ts[i], v.y, 0)),
-            this.curveLength, false).getPoints();
-        this._pointsZ = Curve3.CreateCatmullRomSpline(
-            qs.map((v, i) => new Vector3(ts[i], v.z, 0)),
-            this.curveLength, false).getPoints();
-    }
-}
-
 export interface CloneableQuaternionMap {
     [key: string]: CloneableQuaternion
 }
+
 export type CloneableQuaternionList = CloneableQuaternion[];
 export const cloneableQuaternionToQuaternion = (q: CloneableQuaternionLite): Quaternion => {
     const ret = new Quaternion(q.x, q.y, q.z, q.w);
@@ -126,12 +80,13 @@ export const cloneableQuaternionToQuaternion = (q: CloneableQuaternionLite): Qua
 
 export class FilteredQuaternion {
     private mainFilter: KalmanVectorFilter;
-    private gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
+    private readonly gaussianVectorFilter: Nullable<GaussianVectorFilter> = null;
 
     private _t = 0;
     get t(): number {
         return this._t;
     }
+
     set t(value: number) {
         this._t = value;
     }
@@ -173,9 +128,6 @@ export class FilteredQuaternion {
 export type FilteredQuaternionList = FilteredQuaternion[];
 
 
-export interface NodeWorldMatrixMap {
-    [name: string] : Matrix
-}
 export enum AXIS {
     x,
     y,
@@ -184,7 +136,7 @@ export enum AXIS {
     yz,
     xz,
     xyz,
-    none=10
+    none = 10
 }
 
 // Convenience functions
@@ -202,12 +154,13 @@ export const DegToRad = (d: number) => {
 export function checkQuaternion(q: Quaternion) {
     return Number.isFinite(q.x) && Number.isFinite(q.y) && Number.isFinite(q.z) && Number.isFinite(q.w);
 }
+
 // Similar to three.js Quaternion.setFromUnitVectors
 export const quaternionBetweenVectors = (
     v1: Vector3, v2: Vector3,
 ): Quaternion => {
     const angle = Vector3.GetAngleBetweenVectors(v1, v2, Vector3.Cross(v1, v2))
-    const axis = Vector3.Cross(v1,v2);
+    const axis = Vector3.Cross(v1, v2);
     axis.normalize();
     return Quaternion.RotationAxis(axis, angle);
 };
@@ -218,7 +171,7 @@ export const quaternionBetweenVectors = (
  * @param remapDegree Whether re-map degrees
  */
 export const degreeBetweenVectors = (
-    v1: Vector3, v2: Vector3, remapDegree=false
+    v1: Vector3, v2: Vector3, remapDegree = false
 ) => {
     return quaternionToDegrees(quaternionBetweenVectors(v1, v2), remapDegree);
 };
@@ -237,7 +190,7 @@ export const remapDegreeWithCap = (deg: number) => {
  */
 export const quaternionToDegrees = (
     q: Quaternion,
-    remapDegree=false,
+    remapDegree = false,
 ) => {
     const angles = q.toEulerAngles();
     const remapFn = remapDegree ? remapDegreeWithCap : (x: number) => x;
@@ -451,7 +404,7 @@ export function printQuaternion(q: Quaternion, s?: string) {
  * @param pos Euclidean local position
  * @param basis Local coordinate system basis
  */
-export function calcSphericalCoord0(
+export function calcSphericalCoord(
     pos: Vector3, basis: Basis,
 ) {
     const qToOriginal = Quaternion.Inverse(Quaternion.RotationQuaternionFromAxis(
@@ -471,47 +424,6 @@ export function calcSphericalCoord0(
     return [theta, phi];
 }
 
-/**
- * Modified version for fingers.
- * Outputs -90deg <= phi <= 90deg, -180deg <= theta <= 180deg.
- * @param pos Euclidean local position
- * @param basis Local coordinate system basis
- */
-export function calcSphericalCoord(
-    pos: Vector3, basis: Basis, isFinger=true
-) {
-    const qToOriginal = Quaternion.Inverse(Quaternion.RotationQuaternionFromAxis(
-        basis.x.clone(), basis.y.clone(), basis.z.clone())).normalize();
-    const posInOriginal = Vector3.Zero();
-    pos.rotateByQuaternionToRef(qToOriginal, posInOriginal);
-    posInOriginal.normalize();
-
-    // Calculate theta and phi
-    const x = posInOriginal.x;
-    const y = posInOriginal.y;
-    const z = posInOriginal.z;
-
-    let theta, phi;
-    if (x != 0) {
-        theta = Math.sign(x) * Math.acos(z);
-        phi = Math.atan(y / x);
-    } else {
-        if (y != 0) {
-            theta = Math.sign(y) * Math.acos(z);
-            phi = Math.PI / 2;
-        } else {
-            theta = Math.acos(z);
-            phi = 0;
-        }
-    }
-
-    // Special case for irregular landmakrs
-    if (isFinger && theta < (-Math.PI / 6)) {
-        theta = Math.PI / 2 - theta;
-    }
-
-    return [theta, phi];
-}
 /**
  * Assuming rotation starts from (1, 0, 0) in local coordinate system.
  * @param basis Local coordinate system basis

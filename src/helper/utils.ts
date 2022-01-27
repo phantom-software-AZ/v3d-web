@@ -14,24 +14,7 @@ Copyright (C) 2021  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {
-    Nullable,
-    Plane,
-    PrecisionDate,
-    Quaternion, Vector2,
-    Vector3
-} from "@babylonjs/core";
-import {
-    calcSphericalCoord, degreesEqualInQuaternion,
-    DegToRad,
-    quaternionBetweenVectors,
-    quaternionToDegrees,
-    RadToDeg,
-    sphericalToQuaternion,
-    vectorsSameDirWithinEps
-} from "./quaternion";
-import {Basis, getBasis, quaternionBetweenBases, Vector33} from "./basis";
-import {vectorToNormalizedLandmark} from "./landmark";
+import {Plane, Vector3, Curve3} from "@babylonjs/core";
 
 export function initArray<T>(length: number, initializer: (i: number) => T) {
     let arr = new Array<T>(length);
@@ -42,7 +25,7 @@ export function initArray<T>(length: number, initializer: (i: number) => T) {
 
 export function range(start: number, end: number, step: number) {
     return Array.from(
-        { length: Math.ceil((end - start) / step) },
+        {length: Math.ceil((end - start) / step)},
         (_, i) => start + i * step
     );
 }
@@ -104,10 +87,10 @@ export type KeysMatching<T, V> = { [K in keyof T]-?: T[K] extends V ? K : never 
 // type MethodKeysOfA = KeysMatching<A, Function>;
 
 export type IfEquals<X, Y, A = X, B = never> =
-    (<T>() => T extends X ? 1 : 2) extends
-        (<T>() => T extends Y ? 1 : 2) ? A : B;
+    (<T>() => T extends X ? 1 : 2) extends (<T>() => T extends Y ? 1 : 2) ? A : B;
 export type ReadonlyKeys<T> = {
-    [P in keyof T]-?: IfEquals<{ [Q in P]: T[P] }, { -readonly [Q in P]: T[P] }, never, P>}[keyof T];
+    [P in keyof T]-?: IfEquals<{ [Q in P]: T[P] }, { -readonly [Q in P]: T[P] }, never, P>
+}[keyof T];
 
 // type ReadonlyKeysOfA = ReadonlyKeys<A>;
 
@@ -120,6 +103,7 @@ export function setEqual<T>(as: Set<T>, bs: Set<T>) {
 export function projectVectorOnPlane(projPlane: Plane, vec: Vector3) {
     return vec.subtract(projPlane.normal.scale(Vector3.Dot(vec, projPlane.normal)));
 }
+
 export function round(value: number, precision: number) {
     const multiplier = Math.pow(10, precision || 0);
     return Math.round(value * multiplier) / multiplier;
@@ -134,7 +118,8 @@ export class fixedLengthQueue<T> {
         return this._values;
     }
 
-    constructor(public readonly size: number) {}
+    constructor(public readonly size: number) {
+    }
 
     public push(v: T) {
         this.values.push(v);
@@ -181,4 +166,15 @@ export class fixedLengthQueue<T> {
         return this.values.length;
     }
 }
+
+export function findPoint(curve: Curve3, x: number, eps = 0.001) {
+    const pts = curve.getPoints();
+    if (x > pts[0].x) return pts[0].y;
+    else if (x < pts[pts.length - 1].x) return pts[pts.length - 1].y;
+    for (let i = 0; i < pts.length; ++i) {
+        if (Math.abs(x - pts[i].x) < eps) return pts[i].y;
+    }
+    return 0;
+}
+
 export const LR = ["left", "right"];

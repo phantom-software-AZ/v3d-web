@@ -31,14 +31,6 @@ import {Holistic, Results} from "@mediapipe/holistic";
 import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
-import {
-    test_calcSphericalCoord,
-    test_getBasis,
-    test_quaternionBetweenBases3,
-    test_quaternionBetweenVectors
-} from "./helper/test";
-import {Quaternion, Vector3} from "@babylonjs/core";
-import {DegToRad, quaternionToDegrees, RadToDeg} from "./helper/quaternion";
 
 
 /*
@@ -84,23 +76,8 @@ spinner.ontransitionend = () => {
     spinner.style.display = 'none';
 };
 
-window.addEventListener('load', async (e) => {
+window.addEventListener('load', async () => {
     console.log("Onload");
-    // TODO Debug
-    // @ts-ignore
-    window.r = quaternionToDegrees;
-    // @ts-ignore
-    window.q = Quaternion;
-    // @ts-ignore
-    window.rtd = RadToDeg;
-    // @ts-ignore
-    window.dtr = DegToRad;
-    test_quaternionBetweenBases3();
-    test_getBasis();
-    test_quaternionBetweenVectors();
-    test_calcSphericalCoord();
-    test_calcSphericalCoord(new Vector3(
-        DegToRad(5), DegToRad(89), DegToRad(36)));
 
     // MediaPipe
     const holistic = new Holistic();

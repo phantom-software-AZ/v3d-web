@@ -49,14 +49,17 @@ export class Arrow3D {
     get arrowRadius(): number {
         return this._arrowRadius;
     }
+
     set arrowRadius(value: number) {
         this._arrowRadius = value;
         this.updateTopShape();
     }
+
     private _n: number;
     get n(): number {
         return this._n;
     }
+
     set n(value: number) {
         this._n = value;
         this.updateTopShape();
@@ -66,42 +69,54 @@ export class Arrow3D {
     get arrowHeadLength(): number {
         return this._arrowHeadLength;
     }
+
     set arrowHeadLength(value: number) {
         this._arrowHeadLength = value;
         this.updatePath();
     }
+
     private _arrowHeadMaxSize: number;
+
     get arrowStart(): Vector3 {
         return this._arrowStart;
     }
+
     set arrowStart(value: Vector3) {
         this._arrowStart = value;
         this.updatePath();
     }
+
     private _arrowLength: number;
     get arrowLength(): number {
         return this._arrowLength;
     }
+
     set arrowLength(value: number) {
         this._arrowLength = value;
         this.updatePath();
     }
+
     private _arrowStart: Vector3;
+
     get arrowHeadMaxSize(): number {
         return this._arrowHeadMaxSize;
     }
+
     set arrowHeadMaxSize(value: number) {
         this._arrowHeadMaxSize = value;
         this.updatePath();
     }
+
     private _arrowDirection: Vector3;
     get arrowDirection(): Vector3 {
         return this._arrowDirection;
     }
+
     set arrowDirection(value: Vector3) {
         this._arrowDirection = value;
         this.updatePath();
     }
+
     private _material: StandardMaterial;
     get material(): StandardMaterial {
         return this._material;
@@ -166,7 +181,8 @@ export class Arrow3D {
                     path: this.myPath,
                     updatable: true,
                     scaleFunction: this.scaling.bind(this),
-                    sideOrientation: Mesh.DOUBLESIDE}, this.scene);
+                    sideOrientation: Mesh.DOUBLESIDE
+                }, this.scene);
         else
             this.arrowInstance = MeshBuilder.ExtrudeShapeCustom(
                 "arrow",
@@ -174,7 +190,8 @@ export class Arrow3D {
                     shape: this.myShape,
                     path: this.myPath,
                     scaleFunction: this.scaling.bind(this),
-                    instance: this.arrowInstance}, this.scene);
+                    instance: this.arrowInstance
+                }, this.scene);
         this.arrowInstance.material = this.material;
     }
 
@@ -204,7 +221,7 @@ export function makeSphere(
     scene: Scene,
     pos?: Vector3,
     color?: number | string,
-    options?: createSphereOptions) : Mesh {
+    options?: createSphereOptions): Mesh {
     const sphere = MeshBuilder.CreateSphere("sphere",
         options || {
             diameterX: 1, diameterY: 0.5, diameterZ: 0.5
@@ -264,18 +281,13 @@ export class DebugInfo {
 
         this.leftHandNormalArrows = this.initNormalArrows(6);
         this.rightHandNormalArrows = this.initNormalArrows(6);
-        // @ts-ignore
-        window.upsp2 =
-            (v: Vector3, i: number) => {
-                this.leftHandNormalArrows[i].updateStartAndDirection(
-                    Vector3.Zero(), v
-                );
-            };
 
-        scene.debugLayer.show({
-            globalRoot: document.getElementById('wrapper') as HTMLElement,
-            handleResize: true,
-        });
+        if (!scene.debugLayer.isVisible()) {
+            scene.debugLayer.show({
+                globalRoot: document.getElementById('wrapper') as HTMLElement,
+                handleResize: true,
+            });
+        }
     }
 
     private initLandmarks(
@@ -394,7 +406,7 @@ export class DebugInfo {
         resultFaceMeshIndexLandmarks: number[][],
         resultFaceMeshLandmarks: NormalizedLandmarkList[]) {
         const toShow = [
-            [0],[0],
+            [0], [0],
             [9, 4, 15, 12], [0, 4, 8, 12],
             [0], [0],
             [24, 25, 26, 34, 35, 36],

@@ -99,8 +99,8 @@ export function onResults(
     // Hide the spinner.
     document.body.classList.add('loaded');
 
-    // @ts-ignore: delete camera input to prevent accidental paint
     // TODO: !!!toggle on before release!!!
+    // @ts-ignore: delete camera input to prevent accidental paint
     // delete results.image;
 
     // Worker process
@@ -108,9 +108,9 @@ export function onResults(
         (({segmentationMask, image, ...o}) => o)(results),    // Remove canvas properties
         Comlink.proxy(updateBuffer)
     )
-        // .then(async (r) => {
+        .then(async (r) => {
             // if (debugInfo) {
-                // const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+            //     const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
             //     const resultFaceNormal = await workerPose.faceNormal;
             //     const resultIrisQuaternions = await workerPose.irisQuaternion;
             //     const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
@@ -132,20 +132,15 @@ export function onResults(
             //     // debugInfo.updateHandWristNormalArrows(
             //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
             //     debugInfo.updateHandNormalArrows(
-            //         resultLeftHandNormals, null, resultPoseLandmarks);
+            //         resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
             // }
 
-            // workerPose.midHipOffset.then((v) => {
-            //     vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
-            // });
-
-            // updatePose(vrmManager);
-            // console.debug("Results processed!");
-
-            // Update spring bones
-            // updateSpringBones(vrmManager);
-        // });
+            workerPose.midHipPos.then((v) => {
+                if (v)
+                    vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
+            });
+        });
 
     // Remove landmarks we don't want to draw.
     removeLandmarks(results);

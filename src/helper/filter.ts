@@ -17,7 +17,7 @@ Copyright (C) 2022  The v3d Authors.
 import {Quaternion, Vector3} from "@babylonjs/core";
 import KalmanFilter from "kalmanjs";
 
-export const VISIBILITY_THRESHOLD: number = 0.65;
+export const VISIBILITY_THRESHOLD: number = 0.67;
 
 export interface FilterParams {
     R?: number,
