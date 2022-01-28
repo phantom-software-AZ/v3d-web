@@ -1,8 +1,13 @@
 {
     "name": "v3d-web",
     "version": "0.0.1",
-    "description": "",
-    "keywords": "",
+    "description": "Single camera motion-tracking in browser",
+    "keywords": [
+        "babylon.js",
+        "VRM",
+        "MediaPipe",
+        "WebGL"
+    ],
     "license": "AGPL-3.0-only",
     "author": "Phantom Development",
     "type": "module",
@@ -31,6 +36,6 @@
         "@mediapipe/drawing_utils": "^0.3.1620248257",
         "@mediapipe/holistic": "^0.5.1635989137",
         "comlink": "^4.3.1",
-        "v3d-core": "^1.0.5"
+        "v3d-core": "^1.0.12"
     }
 }

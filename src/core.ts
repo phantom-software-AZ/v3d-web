@@ -18,12 +18,14 @@ import {V3DCore} from "v3d-core/dist/src";
 import {ArcRotateCamera, Nullable, Quaternion, Scene} from "@babylonjs/core";
 import {Color3, Vector3} from "@babylonjs/core/Maths";
 import {Engine} from "@babylonjs/core/Engines";
+import {Camera} from "@babylonjs/core";
 import {DebugInfo} from "./helper/debug";
 
 // Debug
 import "@babylonjs/core/Debug";
 import "@babylonjs/gui";
 import "@babylonjs/inspector";
+
 import * as Comlink from "comlink";
 import {Poses} from "./worker/pose-processing";
 import {Clock} from "./helper/clock";
@@ -31,15 +33,21 @@ import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {HAND_LANDMARKS_BONE_MAPPING} from "./helper/landmark";
 import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
 import {KeysMatching} from "./helper/utils";
-import {CloneableQuaternionMap, cloneableQuaternionToQuaternion} from "./helper/quaternion";
+import {
+    CloneableQuaternionMap,
+    cloneableQuaternionToQuaternion,
+    DegToRad,
+    printQuaternion,
+    RadToDeg
+} from "./helper/quaternion";
 import {Holistic} from "@mediapipe/holistic";
 
 const IS_DEBUG = true;
+const clock = new Clock(), textDecode = new TextDecoder();
 export let debugInfo: Nullable<DebugInfo>;
 let boneRotations: Nullable<CloneableQuaternionMap> = null,
     holisticUpdate = false,
-    bonesNeedUpdate = false,
-    textDecode = new TextDecoder();
+    bonesNeedUpdate = false;
 
 const videoElement =
     document.getElementsByClassName('input_video')[0] as HTMLVideoElement;
@@ -76,28 +84,33 @@ export async function createScene(
     holistic: Holistic) {
     await getCamera();
 
-    // const vrmFile = 'testfiles/2078913627571329107.vrm';
-    const vrmFile = 'testfiles/Ashtra.vrm';
+    const vrmFile = 'testfiles/7198176664607455952.vrm';
+    // const vrmFile = 'testfiles/Ashtra.vrm';
 
     // Create v3d core
     const v3DCore = new V3DCore(engine, new Scene(engine));
-    v3DCore.transparentBackground();
     await v3DCore.AppendAsync('', vrmFile);
 
     // Get managers
     const vrmManager = v3DCore.getVRMManagerByURI(vrmFile);
 
     // Camera
-    v3DCore.attachCameraTo(vrmManager);
-    (v3DCore.mainCamera as ArcRotateCamera).setPosition(new Vector3(0, 0, -5));
-    (v3DCore.mainCamera as ArcRotateCamera).setTarget(Vector3.Zero());
+    // v3DCore.attachCameraTo(vrmManager);
+    const mainCamera = (v3DCore.mainCamera as ArcRotateCamera);
+    mainCamera.setPosition(new Vector3(0, 1.25, 4.5));
+    mainCamera.setTarget(Vector3.Zero());
+    mainCamera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
 
-    // Lights
+    // Lights and Skybox
     v3DCore.addAmbientLight(new Color3(1, 1, 1));
+    v3DCore.setBackgroundColor(Color3.FromHexString('#e7a2ff'));
 
     // Lock camera target
     v3DCore.scene?.onBeforeRenderObservable.add(() => {
-        vrmManager.cameras[0].setTarget(vrmManager.rootMesh.getAbsolutePosition());
+        if (!IS_DEBUG) {
+            mainCamera.setTarget(
+                vrmManager.rootMesh.getWorldMatrix().getTranslation().subtractFromFloats(0, -1.25, 0));
+        }
     });
     v3DCore.renderingPipeline.depthOfFieldEnabled = false;
 
@@ -106,9 +119,10 @@ export async function createScene(
 
     // Disable auto animation
     v3DCore.springBonesAutoUpdate = false;
+
+    // Update functions
     v3DCore.updateBeforeRenderFunction(
         () => {
-            // updateSpringBonesNoForce(vrmManager);
             // Half input fps. This version of Holistic is heavy on CPU time.
             // Wait until they fix web worker (https://github.com/google/mediapipe/issues/2506).
             if (holisticUpdate) {
@@ -124,7 +138,6 @@ export async function createScene(
                 updateSpringBones(vrmManager);
                 bonesNeedUpdate = false;
             }
-            // updateSpringBonesNoForce(vrmManager);
         }
     );
 
@@ -134,20 +147,28 @@ export async function createScene(
     });
 
     // Model Transformation
-    vrmManager.rootMesh.translate(new Vector3(1, 0, 0), 1);
     vrmManager.rootMesh.rotationQuaternion = Quaternion.RotationYawPitchRoll(0, 0, 0);
 
-    // TODO: Debug only
-    // @ts-ignore
-    window['vrmManager'] = vrmManager;
-
     // Debug
-    if (IS_DEBUG && v3DCore.scene) debugInfo = new DebugInfo(v3DCore.scene);
+    if (IS_DEBUG && v3DCore.scene) {
+        debugInfo = new DebugInfo(v3DCore.scene);
+
+        // @ts-ignore
+        window.vrmManager = vrmManager;
+        // @ts-ignore
+        window.q = Quaternion;
+        // @ts-ignore
+        window.dtr = DegToRad;
+        // @ts-ignore
+        window.rtd = RadToDeg;
+        // @ts-ignore
+        window.r = printQuaternion;
+    }
+
+    engine.hideLoadingUI();
 
     return vrmManager;
 }
-
-const clock = new Clock();
 
 export function updateSpringBones(vrmManager: VRMManager) {
     const deltaTime = clock.getDelta() * 1000;

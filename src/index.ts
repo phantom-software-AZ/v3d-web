@@ -23,7 +23,7 @@ import "@babylonjs/core/Loading/Plugins/babylonFileLoader";
 import "@babylonjs/core/Materials";
 import "@babylonjs/loaders/glTF/glTFFileLoader";
 
-import {Engine} from "@babylonjs/core/Engines/engine";
+import {Engine} from "@babylonjs/core";
 
 import {FPS} from "@mediapipe/control_utils";
 import {Holistic, Results} from "@mediapipe/holistic";
@@ -31,6 +31,7 @@ import {Holistic, Results} from "@mediapipe/holistic";
 import {Poses} from "./worker/pose-processing";
 import {createScene} from "./core";
 import {createControlPanel, onResults} from "./mediapipe";
+import {CustomLoadingScreen} from "./helper/utils";
 
 
 /*
@@ -40,11 +41,8 @@ const videoElement =
     document.getElementsByClassName('input_video')[0] as HTMLVideoElement;
 const webglCanvasElement =
     document.getElementById('webgl-canvas') as HTMLCanvasElement;
-const videoCanvasElement =
-    document.getElementById('video-canvas') as HTMLCanvasElement;
 const controlsElement =
     document.getElementsByClassName('control-panel')[0] as HTMLDivElement;
-const videoCanvasCtx = videoCanvasElement.getContext('2d')!;
 
 /*
  * Comlink/workers
@@ -59,6 +57,7 @@ const workerPose = Comlink.wrap<Poses>(poseProcessingWorker);
 let engine: Engine;
 if (Engine.isSupported()) {
     engine = new Engine(webglCanvasElement, true);
+    engine.loadingScreen = new CustomLoadingScreen(webglCanvasElement);
 }
 
 /*
@@ -70,14 +69,11 @@ let activeEffect = 'mask';
 // call tick() each time the graph runs.
 const fpsControl = new FPS();
 
-// Optimization: Turn off animated spinner after its hiding animation is done.
-const spinner = document.querySelector('.loading')! as HTMLDivElement;
-spinner.ontransitionend = () => {
-    spinner.style.display = 'none';
-};
-
 window.addEventListener('load', async () => {
     console.log("Onload");
+
+    // Loading screen
+    engine.displayLoadingUI();
 
     // MediaPipe
     const holistic = new Holistic();
@@ -85,8 +81,6 @@ window.addEventListener('load', async () => {
         results,
         vrmManager,
         workerPose,
-        videoCanvasElement,
-        videoCanvasCtx,
         activeEffect,
         fpsControl
     );

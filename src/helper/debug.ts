@@ -469,7 +469,7 @@ export class DebugInfo {
                 this.rightHandNormalArrows[i].updateStartAndDirection(
                     // normalizedLandmarkToVector(
                     //     resultPoseLandmarks[POSE_LANDMARKS.RIGHT_WRIST]),
-                    i < 3 ? Vector3.Zero() : new Vector3(0, 1, 0),
+                    i < 3 ? Vector3.One() : new Vector3(0, 1, 0),
                     normalizedLandmarkToVector(resultRightHandNormals[i]),
                 );
             }

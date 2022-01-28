@@ -18,10 +18,7 @@ import * as Comlink from "comlink";
 import {
     ControlPanel,
     FPS,
-    InputImage,
-    Rectangle,
     Slider,
-    SourcePicker,
     StaticText,
     Toggle
 } from "@mediapipe/control_utils";
@@ -39,16 +36,11 @@ import {
     POSE_LANDMARKS, POSE_LANDMARKS_LEFT, POSE_LANDMARKS_RIGHT,
     Results
 } from "@mediapipe/holistic";
-import {contain} from "./helper/canvas";
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
-import {Angle, Quaternion, Vector3} from "@babylonjs/core";
-import {debugInfo, updateBuffer, updatePose, updateSpringBones} from "./core";
-import {KeysMatching} from "./helper/utils";
+import {debugInfo, updateBuffer} from "./core";
+import {Vector3} from "@babylonjs/core";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
-import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
-import {HAND_LANDMARKS_BONE_MAPPING, normalizedLandmarkToVector} from "./helper/landmark";
-import {cloneableQuaternionToQuaternion} from "./helper/quaternion";
 
 function removeElements(
     landmarks: NormalizedLandmarkList, elements: number[]) {
@@ -87,21 +79,35 @@ function connect(
     }
 }
 
+const holisticOptions = {
+    selfieMode: true,
+    modelComplexity: 1,
+    useCpuInference: false,
+    cameraOn: true,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    smoothSegmentation: false,
+    refineFaceLandmarks: true,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.55,
+    effect: 'background',
+};
+
 export function onResults(
     results: Results,
     vrmManager: VRMManager,
     workerPose: Comlink.Remote<Poses>,
-    videoCanvasElement: HTMLCanvasElement,
-    videoCanvasCtx: CanvasRenderingContext2D,
     activeEffect: string,
     fpsControl: FPS
 ): void {
-    // Hide the spinner.
+    // notify loaded.
     document.body.classList.add('loaded');
 
     // TODO: !!!toggle on before release!!!
     // @ts-ignore: delete camera input to prevent accidental paint
-    // delete results.image;
+    delete results.image;
+
+    if (!holisticOptions.cameraOn) return;
 
     // Worker process
     workerPose.process(
@@ -129,16 +135,16 @@ export function onResults(
             //     // debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
             //     debugInfo.updateIrisQuaternionArrows(
             //         resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
-            //     // debugInfo.updateHandWristNormalArrows(
-            //     //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
-            //     debugInfo.updateHandNormalArrows(
-            //         resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
+                // debugInfo.updateHandWristNormalArrows(
+                //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
+                // debugInfo.updateHandNormalArrows(
+                //     resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
             //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
             // }
 
             workerPose.midHipPos.then((v) => {
                 if (v)
-                    vrmManager.rootMesh.position = normalizedLandmarkToVector(v);
+                    vrmManager.rootMesh.position = new Vector3(-v.x, v.y, -v.z);
             });
         });
 
@@ -148,9 +154,29 @@ export function onResults(
     // Update the frame rate.
     fpsControl.tick();
 
+    // Get canvas context
+    const videoCanvasElement =
+        document.getElementById('video-canvas') as HTMLCanvasElement;
+    const videoCanvasCtx = videoCanvasElement.getContext('2d');
+    if (!videoCanvasCtx) return;
+
     // Draw the overlays.
     videoCanvasCtx.save();
     videoCanvasCtx.clearRect(0, 0, videoCanvasElement.width, videoCanvasElement.height);
+
+    // Draw safe area
+    videoCanvasCtx.fillStyle = 'rgba(34,34,34,0.5)';
+    videoCanvasCtx.strokeStyle = 'red';
+    videoCanvasCtx.lineWidth = 3;
+    const paddingX = 0.04, paddingY = 0.08;
+    videoCanvasCtx.fillRect(videoCanvasElement.width * paddingX,
+        videoCanvasElement.height * paddingY,
+        videoCanvasElement.width * (1 - 2 * paddingX),
+        videoCanvasElement.height * (1 - 2 * paddingY));
+    videoCanvasCtx.strokeRect(videoCanvasElement.width * paddingX,
+        videoCanvasElement.height * paddingY,
+        videoCanvasElement.width * (1 - 2 * paddingX),
+        videoCanvasElement.height * (1 - 2 * paddingY));
 
     if (results.segmentationMask) {
         videoCanvasCtx.drawImage(
@@ -171,13 +197,15 @@ export function onResults(
 
         // Only overwrite missing pixels.
         videoCanvasCtx.globalCompositeOperation = 'destination-atop';
-        videoCanvasCtx.drawImage(
-            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        if (results.image)
+            videoCanvasCtx.drawImage(
+                results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
 
         videoCanvasCtx.globalCompositeOperation = 'source-over';
     } else {
-        videoCanvasCtx.drawImage(
-            results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
+        if (results.image)
+            videoCanvasCtx.drawImage(
+                results.image, 0, 0, videoCanvasElement.width, videoCanvasElement.height);
     }
 
     // Connect elbows to hands. Do this first so that the other graphics will draw
@@ -207,12 +235,12 @@ export function onResults(
             videoCanvasCtx,
             Object.values(POSE_LANDMARKS_LEFT)
                 .map(index => results.poseLandmarks[index]),
-            {visibilityMin: 0.65, color: 'white', fillColor: 'rgb(255,138,0)'});
+            {visibilityMin: 0.55, color: 'white', fillColor: 'rgb(255,138,0)'});
         drawLandmarks(
             videoCanvasCtx,
             Object.values(POSE_LANDMARKS_RIGHT)
                 .map(index => results.poseLandmarks[index]),
-            {visibilityMin: 0.65, color: 'white', fillColor: 'rgb(0,217,231)'});
+            {visibilityMin: 0.55, color: 'white', fillColor: 'rgb(0,217,231)'});
 
         // Hands...
         drawConnectors(
@@ -277,44 +305,11 @@ export function createControlPanel(
     controlsElement: HTMLDivElement,
     activeEffect: string,
     fpsControl: FPS) {
-    new ControlPanel(controlsElement, {
-        selfieMode: true,
-        modelComplexity: 1,
-        useCpuInference: false,
-        smoothLandmarks: true,
-        enableSegmentation: false,
-        smoothSegmentation: false,
-        refineFaceLandmarks: true,
-        minDetectionConfidence: 0.6,
-        minTrackingConfidence: 0.65,
-        effect: 'background',
-    })
+    new ControlPanel(controlsElement, holisticOptions)
         .add([
-            new StaticText({title: 'MediaPipe Holistic'}),
+            new StaticText({title: 'Options'}),
             fpsControl,
             new Toggle({title: 'Selfie Mode', field: 'selfieMode'}),
-            // new SourcePicker({
-            //     onSourceChanged: () => {
-            //         // Resets because the pose gives better results when reset between
-            //         // source changes.
-            //         holistic.reset();
-            //     },
-            //     // onFrame:
-            //     //     (input: InputImage, size: Rectangle) => {
-            //     //         // const aspect = size.height / size.width;
-            //     //         // let width: number, height: number;
-            //     //         // if (window.innerWidth > window.innerHeight) {
-            //     //         //     height = window.innerHeight;
-            //     //         //     width = height / aspect;
-            //     //         // } else {
-            //     //         //     width = window.innerWidth;
-            //     //         //     height = width * aspect;
-            //     //         // }
-            //     //         // videoCanvasElement.width = width;
-            //     //         // videoCanvasElement.height = height;
-            //     //         // return holistic.send({image: input});
-            //     //     },
-            // }),
             new Slider({
                 title: 'Model Complexity',
                 field: 'modelComplexity',
@@ -322,6 +317,8 @@ export function createControlPanel(
             }),
             new Toggle(
                 {title: 'Use CPU Only', field: 'useCpuInference'}),
+            new Toggle(
+                {title: 'Camera on', field: 'cameraOn'}),
             new Toggle(
                 {title: 'Smooth Landmarks', field: 'smoothLandmarks'}),
             new Toggle(
@@ -351,6 +348,12 @@ export function createControlPanel(
         .on(x => {
             const options = x as Options;
             videoElement.classList.toggle('selfie', options.selfieMode);
+            // @ts-ignore
+            if (options.cameraOn) {
+                videoElement.play();
+            } else {
+                videoElement.pause();
+            }
             activeEffect = (x as { [key: string]: string })['effect'];
             holistic.setOptions(options);
         });

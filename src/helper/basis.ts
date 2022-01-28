@@ -140,11 +140,11 @@ export class Basis {
 export function quaternionBetweenBases(
     basis1: Basis,
     basis2: Basis,
-    extraQuaternion?: Quaternion
+    prevQuaternion?: Quaternion
 ) {
     let thisBasis1 = basis1, thisBasis2 = basis2;
-    if (extraQuaternion !== undefined) {
-        const extraQuaternionR = Quaternion.Inverse(extraQuaternion);
+    if (prevQuaternion !== undefined) {
+        const extraQuaternionR = Quaternion.Inverse(prevQuaternion);
         thisBasis1 = basis1.rotateByQuaternion(extraQuaternionR);
         thisBasis2 = basis2.rotateByQuaternion(extraQuaternionR);
     }

@@ -14,10 +14,10 @@ Copyright (C) 2022  The v3d Authors.
     along with this program.  If not, see <https://www.gnu.org/licenses/>.
  */
 
-import {Quaternion, Vector3} from "@babylonjs/core";
+import { Vector3} from "@babylonjs/core";
 import KalmanFilter from "kalmanjs";
 
-export const VISIBILITY_THRESHOLD: number = 0.67;
+export const VISIBILITY_THRESHOLD: number = 0.6;
 
 export interface FilterParams {
     R?: number,

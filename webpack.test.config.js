@@ -55,7 +55,6 @@ const config = {
     plugins: [
         new CopyPlugin({
             patterns: [
-                {from: "src/vendor", to: "src/vendor"},
                 {from: "node_modules/@mediapipe/holistic", to: "."},
             ],
         }),

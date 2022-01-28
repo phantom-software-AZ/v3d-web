@@ -2,6 +2,7 @@ import * as path from 'path';
 import { merge } from 'webpack-merge';
 import { fileURLToPath } from 'url';
 import {resolve} from "path";
+import terser from "terser-webpack-plugin";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -35,6 +36,10 @@ const baseConfig = {
     },
     optimization: {
         minimize: true,
+        minimizer: [new terser({
+            extractComments: false,
+        })],
+        concatenateModules: true,
     },
     target: ['web'],
 };
@@ -50,11 +55,6 @@ const config = [
             filename: '[name].module.js',
             path: path.resolve(__dirname, 'dist'),
         },
-        externals: [
-            /^@babylonjs.*$/,
-            /^v3d-core.*$/,
-            /^@mediapipe.*$/,
-        ],
     }),
     // ES6
     merge(baseConfig, {
@@ -69,11 +69,6 @@ const config = [
         experiments: {
             outputModule: true,
         },
-        externals: [
-            /^@babylonjs.*$/,
-            /^v3d-core.*$/,
-            /^@mediapipe.*$/,
-        ],
         externalsType: 'module',
     }),
     // browser global
@@ -86,11 +81,6 @@ const config = [
             filename: '[name].js',
             path: resolve(__dirname, 'dist'),
         },
-        externals: [
-            /^@babylonjs.*$/,
-            /^v3d-core.*$/,
-            /^@mediapipe.*$/,
-        ],
     }),
 ];
 

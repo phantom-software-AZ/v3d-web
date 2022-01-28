@@ -11,15 +11,6 @@
    Base styles: opinionated defaults
    ========================================================================== */
 
-@keyframes spin {
-    0% {
-        transform: rotate(0deg);
-    }
-    100% {
-        transform: rotate(360deg);
-    }
-}
-
 .abs {
     position: absolute;
 }
@@ -27,9 +18,9 @@
 a {
     color: white;
     text-decoration: none;
-&:hover {
+}
+a:hover {
      color: lightblue;
- }
 }
 
 body {
@@ -47,7 +38,6 @@ body {
 
 .container {
     position: absolute;
-    background-color: #596e73;
     width: 100%;
     max-height: 100%;
     height: 100vh;
@@ -60,9 +50,9 @@ body {
     left: 0;
     right: 0;
     bottom: 0;
-&.selfie {
+}
+.input_video.selfie {
      transform: scale(-1, 1);
- }
 }
 
 .input_image {
@@ -78,28 +68,22 @@ body {
 }
 
 .output_canvas {
-    max-width: 50%;
+    width: 100%;
     display: block;
     position: relative;
     height: 100%;
+    z-index: 0;
 }
 
-.logo {
-    bottom: 10px;
-    right: 20px;
-
-.title {
-    color: white;
-    font-size: 28px;
-}
-
-.subtitle {
-    position: relative;
-    color: white;
-    font-size: 10px;
-    left: -30px;
-    top: 20px;
-}
+.video_output_canvas {
+    max-width: 20%;
+    display: block;
+    position: absolute;
+    top: 30px;
+    left: 50px;
+    background: #3d3d3d;
+    opacity: 0.8;
+    z-index: 1;
 }
 
 .control-panel {
@@ -120,22 +104,54 @@ body {
     justify-content: center;
     opacity: 1;
     transition: opacity 1s;
+}
 
 .message {
     font-size: x-large;
 }
 
-.spinner {
-    position: absolute;
-    width: 120px;
-    height: 120px;
-    animation: spin 1s linear infinite;
-    border: 32px solid #bebebe;
-    border-top: 32px solid #3498db;
-    border-radius: 50%;
+.lds-ring {
+    display: inline-block;
+    position: relative;
+    width: 80px;
+    height: 80px;
+    z-index: 10;
 }
+.lds-ring div {
+    box-sizing: border-box;
+    display: block;
+    position: absolute;
+    width: 64px;
+    height: 64px;
+    margin: 8px;
+    border: 8px solid #fff;
+    border-radius: 50%;
+    animation: lds-ring 1.2s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+    border-color: #fff transparent transparent transparent;
+}
+.lds-ring div:nth-child(1) {
+    animation-delay: -0.45s;
+}
+.lds-ring div:nth-child(2) {
+    animation-delay: -0.3s;
+}
+.lds-ring div:nth-child(3) {
+    animation-delay: -0.15s;
+}
+@keyframes lds-ring {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
 }
 
-.loaded .loading {
-    opacity: 0;
-}
+.dark-primary-color    { background: #512DA8; }
+.default-primary-color { background: #673AB7; }
+.light-primary-color   { background: #D1C4E9; }
+.text-primary-color    { color: #FFFFFF; }
+.accent-color          { background: #607D8B; }
+.primary-text-color    { color: #212121; }
+.secondary-text-color  { color: #757575; }
+.divider-color         { border-color: #BDBDBD; }

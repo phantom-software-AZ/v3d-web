@@ -86,7 +86,6 @@ export class FilteredQuaternion {
     get t(): number {
         return this._t;
     }
-
     set t(value: number) {
         this._t = value;
     }
@@ -429,26 +428,32 @@ export function calcSphericalCoord(
  * @param basis Local coordinate system basis
  * @param theta Polar angle
  * @param phi Azimuthal angle
+ * @param prevQuaternion Parent quaternion to the local system
  */
-export function sphericalToQuaternion(basis: Basis, theta: number, phi: number) {
+export function sphericalToQuaternion(
+    basis: Basis, theta: number, phi: number,
+    prevQuaternion: Quaternion) {
     const xTz = Quaternion.RotationAxis(basis.y.clone(), -Math.PI / 2);
-    const q1 = Quaternion.RotationAxis(basis.x.clone(), phi);
-
-    const q2 = Quaternion.RotationAxis(basis.y.clone(), theta);
+    const xTzBasis = basis.rotateByQuaternion(xTz);
+    const q1 = Quaternion.RotationAxis(xTzBasis.x.clone(), phi);
+    const q1Basis = xTzBasis.rotateByQuaternion(q1);
+    const q2 = Quaternion.RotationAxis(q1Basis.y.clone(), theta);
+    const q2Basis = q1Basis.rotateByQuaternion(q2);
 
     // Force result to face front
     const planeXZ = Plane.FromPositionAndNormal(Vector3.Zero(), basis.y.clone());
-    const intermBasis = basis.rotateByQuaternion(xTz.multiply(q1).multiplyInPlace(q2));
+    // const intermBasis = basis.rotateByQuaternion(xTz.multiply(q1).multiplyInPlace(q2));
+    const intermBasis = q2Basis;
     const newBasisZ = Vector3.Cross(intermBasis.x.clone(), planeXZ.normal);
     const newBasisY = Vector3.Cross(newBasisZ, intermBasis.x.clone());
     const newBasis = new Basis([intermBasis.x, newBasisY, newBasisZ]);
 
-    return quaternionBetweenBases(basis, newBasis);
+    return quaternionBetweenBases(basis, newBasis, prevQuaternion);
 }
 
 // Scale rotation angles in place
-export function scaleRotationInPlace(quaternion: Quaternion, scale: number) {
+export function scaleRotation(quaternion: Quaternion, scale: number) {
     const angles = quaternion.toEulerAngles();
     angles.scaleInPlace(scale);
-    return Quaternion.FromEulerVectorToRef(angles, quaternion);
+    return Quaternion.FromEulerVector(angles);
 }

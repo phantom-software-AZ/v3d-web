@@ -20,27 +20,28 @@
     <meta name="theme-color" content="#fafafa">
 
     <link rel="stylesheet" type="text/css" href="css/control_utils.css" crossorigin="anonymous">
+    <link rel="stylesheet" type="text/css" href="css/normalize.css" crossorigin="anonymous">
 
-    <link rel="preload" href="holistic_solution_packed_assets.data" as="fetch" crossorigin="anonymous" />
-    <link rel="preload" href="holistic_solution_simd_wasm_bin.wasm" as="fetch" crossorigin="anonymous" />
-    <link rel="preload" href="pose_landmark_full.tflite" as="fetch" crossorigin="anonymous" />
+    <link rel="preload" href="holistic_solution_packed_assets.data" as="fetch" crossorigin="anonymous"/>
+    <link rel="preload" href="holistic_solution_simd_wasm_bin.wasm" as="fetch" crossorigin="anonymous"/>
+    <link rel="preload" href="pose_landmark_full.tflite" as="fetch" crossorigin="anonymous"/>
 </head>
 
 <body>
 
 <!-- Add your site or application content here -->
-<main class="container">
+<main class="container default-primary-color">
     <video class="input_video"></video>
     <div id="wrapper" class="canvas-container">
-        <canvas id="webgl-canvas" class="output_canvas" style="float: left">
+        <canvas id="webgl-canvas" class="output_canvas">
         </canvas>
-        <canvas id="video-canvas" class="output_canvas" style="float: right">
+        <canvas id="video-canvas" class="video_output_canvas">
         </canvas>
     </div>
-    <div class="loading">
-        <div class="spinner"></div>
-        <div class="message">
-            Loading
+    <div class="loading" id="loading">
+        <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+        <div class="message secondary-text-color">
+            Loading...
         </div>
     </div>
     <div class="control-panel">
