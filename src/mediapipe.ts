@@ -18,6 +18,7 @@ import * as Comlink from "comlink";
 import {
     ControlPanel,
     FPS,
+    OptionMap,
     Slider,
     StaticText,
     Toggle
@@ -39,7 +40,7 @@ import {
 import {Data, drawConnectors, drawLandmarks, lerp} from "@mediapipe/drawing_utils";
 import {Poses} from "./worker/pose-processing";
 import {debugInfo, updateBuffer} from "./core";
-import {Vector3} from "@babylonjs/core";
+import {Vector3, Nullable} from "@babylonjs/core";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 
 function removeElements(
@@ -98,7 +99,7 @@ export function onResults(
     vrmManager: VRMManager,
     workerPose: Comlink.Remote<Poses>,
     activeEffect: string,
-    fpsControl: FPS
+    fpsControl: Nullable<FPS>
 ): void {
     // notify loaded.
     document.body.classList.add('loaded');
@@ -152,7 +153,7 @@ export function onResults(
     removeLandmarks(results);
 
     // Update the frame rate.
-    fpsControl.tick();
+    if (fpsControl) fpsControl.tick();
 
     // Get canvas context
     const videoCanvasElement =
@@ -299,12 +300,28 @@ export function onResults(
     videoCanvasCtx.restore();
 }
 
+function setHolisticOptions(x: OptionMap, videoElement: HTMLVideoElement, activeEffect: string, holistic: Holistic) {
+    const options = x as Options;
+    videoElement.classList.toggle('selfie', options.selfieMode);
+    // @ts-ignore
+    if (options.cameraOn) {
+        videoElement.play();
+    } else {
+        videoElement.pause();
+    }
+    activeEffect = (x as { [key: string]: string })['effect'];
+    holistic.setOptions(options);
+}
+
 export function createControlPanel(
     holistic: Holistic,
     videoElement: HTMLVideoElement,
     controlsElement: HTMLDivElement,
     activeEffect: string,
-    fpsControl: FPS) {
+    fpsControl: Nullable<FPS>) {
+    setHolisticOptions(holisticOptions, videoElement, activeEffect, holistic);
+    if (!controlsElement || !fpsControl) return;
+
     new ControlPanel(controlsElement, holisticOptions)
         .add([
             new StaticText({title: 'Options'}),
@@ -345,16 +362,7 @@ export function createControlPanel(
                 discrete: {'background': 'Background', 'mask': 'Foreground'},
             }),
         ])
-        .on(x => {
-            const options = x as Options;
-            videoElement.classList.toggle('selfie', options.selfieMode);
-            // @ts-ignore
-            if (options.cameraOn) {
-                videoElement.play();
-            } else {
-                videoElement.pause();
-            }
-            activeEffect = (x as { [key: string]: string })['effect'];
-            holistic.setOptions(options);
+        .on((x) => {
+            setHolisticOptions(x, videoElement, activeEffect, holistic);
         });
 }

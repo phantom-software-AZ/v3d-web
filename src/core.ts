@@ -42,7 +42,7 @@ import {
 } from "./helper/quaternion";
 import {Holistic} from "@mediapipe/holistic";
 
-const IS_DEBUG = true;
+const IS_DEBUG = false;
 const clock = new Clock(), textDecode = new TextDecoder();
 export let debugInfo: Nullable<DebugInfo>;
 let boneRotations: Nullable<CloneableQuaternionMap> = null,
@@ -97,8 +97,9 @@ export async function createScene(
     // Camera
     // v3DCore.attachCameraTo(vrmManager);
     const mainCamera = (v3DCore.mainCamera as ArcRotateCamera);
-    mainCamera.setPosition(new Vector3(0, 1.25, 4.5));
-    mainCamera.setTarget(Vector3.Zero());
+    mainCamera.setPosition(new Vector3(0, 1.05, 4.5));
+    mainCamera.setTarget(
+        vrmManager.rootMesh.getWorldMatrix().getTranslation().subtractFromFloats(0, -1.25, 0));
     mainCamera.fovMode = Camera.FOVMODE_HORIZONTAL_FIXED;
 
     // Lights and Skybox
@@ -107,10 +108,7 @@ export async function createScene(
 
     // Lock camera target
     v3DCore.scene?.onBeforeRenderObservable.add(() => {
-        if (!IS_DEBUG) {
-            mainCamera.setTarget(
-                vrmManager.rootMesh.getWorldMatrix().getTranslation().subtractFromFloats(0, -1.25, 0));
-        }
+
     });
     v3DCore.renderingPipeline.depthOfFieldEnabled = false;
 

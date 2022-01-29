@@ -67,7 +67,7 @@ let activeEffect = 'mask';
 
 // We'll add this to our control panel later, but we'll save it here so we can
 // call tick() each time the graph runs.
-const fpsControl = new FPS();
+const fpsControl = controlsElement ? new FPS() : null;
 
 window.addEventListener('load', async () => {
     console.log("Onload");

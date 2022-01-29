@@ -77,7 +77,15 @@ export const remapRangeWithCap = (
     const v1 = rangeCap(v, src_low, src_high);
     return dst_low + (v1 - src_low) * (dst_high - dst_low) / (src_high - src_low);
 };
-
+export const remapRangeNoCap = (
+    v: number,
+    src_low: number,
+    src_high: number,
+    dst_low: number,
+    dst_high: number
+) => {
+    return dst_low + (v - src_low) * (dst_high - dst_low) / (src_high - src_low);
+};
 export function validVector3(v: Vector3) {
     return Number.isFinite(v.x) && Number.isFinite(v.y) && Number.isFinite(v.z);
 }
@@ -218,4 +226,16 @@ export class CustomLoadingScreen implements ILoadingScreen {
         this._loadingDiv.style.width = canvasRect.width + "px";
         this._loadingDiv.style.height = canvasRect.height + "px";
     }
+}
+
+export function pointLineDistance(
+    point: Vector3,
+    lineEndA: Vector3, lineEndB: Vector3
+) {
+    const lineDir = lineEndB.subtract(lineEndA).normalize();
+    const pProj = lineEndA.add(
+        lineDir.scale(
+            Vector3.Dot(point.subtract(lineEndA), lineDir)
+            / Vector3.Dot(lineDir, lineDir)));
+    return point.subtract(pProj).length();
 }

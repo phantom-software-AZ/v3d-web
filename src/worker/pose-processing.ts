@@ -30,13 +30,13 @@ import {
     POSE_LANDMARKS_LEFT,
     POSE_LANDMARKS_RIGHT,
 } from "@mediapipe/holistic";
-import {Curve3, Nullable, Plane, Quaternion, Vector3} from "@babylonjs/core";
+import {Nullable, Plane, Quaternion, Vector3} from "@babylonjs/core";
 import {
-    findPoint,
+    fixedLengthQueue,
     initArray,
-    KeysMatching, LR,
+    KeysMatching, LR, pointLineDistance,
     projectVectorOnPlane,
-    ReadonlyKeys, remapRange,
+    ReadonlyKeys, remapRange, remapRangeNoCap,
     remapRangeWithCap,
 } from "../helper/utils";
 import {TransformNodeTreeNode} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
@@ -119,18 +119,8 @@ export class Poses {
     private static readonly IRIS_BJS_X_RANGE = 0.28;
     private static readonly IRIS_BJS_Y_RANGE = 0.12;
 
-    private static readonly BLINK_EYE_WIDTH_CURVE_LOW = Curve3.CreateCatmullRomSpline([
-        new Vector3(0.105, 0.0199, 0),
-        new Vector3(0.058, 0.018, 0),
-        new Vector3(0.016, 0.0144, 0),
-        new Vector3(0.0105, 0.0145, 0),
-    ], 100);
-    private static readonly BLINK_EYE_WIDTH_CURVE_HIGH = Curve3.CreateCatmullRomSpline([
-        new Vector3(0.105, 0.0205, 0),
-        new Vector3(0.058, 0.0198, 0),
-        new Vector3(0.016, 0.015, 0),
-        new Vector3(0.0105, 0.0175, 0),
-    ], 100);
+    private static readonly BLINK_RATIO_LOW = 0.59;
+    private static readonly BLINK_RATIO_HIGH = 0.61;
     private static readonly MOUTH_MP_RANGE_LOW = 0.001;
     private static readonly MOUTH_MP_RANGE_HIGH = 0.06;
 
@@ -158,7 +148,7 @@ export class Poses {
     private worldPoseLandmarks: FilteredLandmarkVectorList = initArray<FilteredLandmarkVector>(
         POSE_LANDMARK_LENGTH, () => {
             return new FilteredLandmarkVector({
-                R: 0.1, Q: 5, type: 'Kalman',
+                R: 0.1, Q: 1, type: 'Kalman',
             });  // 0.01, 0.6, 0.007
         });
     // Cannot use Vector3 directly since postMessage() erases all methods
@@ -243,6 +233,11 @@ export class Poses {
     get keyPoints(): PoseKeyPoints {
         return this._keyPoints;
     }
+    private _blinkBase: FilteredLandmarkVector = new FilteredLandmarkVector({
+        R: 1, Q: 1, type: 'Kalman',
+    });
+    private _leftBlinkArr: fixedLengthQueue<number> = new fixedLengthQueue<number>(10);
+    private _rightBlinkArr: fixedLengthQueue<number> = new fixedLengthQueue<number>(10);
 
     // Calculated properties
     private _faceNormal: NormalizedLandmark = {x: 0, y: 0, z: 0};
@@ -287,9 +282,9 @@ export class Poses {
     }
 
     public midHipPos: Nullable<NormalizedLandmark> = null;
-    public midHipInitOffset: NormalizedLandmark = {x: 0, y: 0, z: 0};
+    public midHipInitOffset: Nullable<NormalizedLandmark> = null;
     public midHipOffset = new FilteredLandmarkVector({
-        R: 0.1, Q: 1, type: 'Kalman',
+        R: 1, Q: 10, type: 'Kalman',
     });
 
     constructor() {
@@ -509,24 +504,46 @@ export class Poses {
             1, 1.25
         );
 
-        const leftEyeWidth = this._keyPoints.left_eye_inner.pos.subtract(this._keyPoints.left_eye_outer.pos).length();
-        const leftBlink = 1 - remapRangeWithCap(
-            this._keyPoints.left_eye_top.pos
-                .subtract(this._keyPoints.left_eye_bottom.pos)
-                .length() * Poses.EYE_WIDTH_BASELINE / leftEyeWidth * rotationCoeff,
-            findPoint(Poses.BLINK_EYE_WIDTH_CURVE_LOW, leftEyeWidth),
-            findPoint(Poses.BLINK_EYE_WIDTH_CURVE_HIGH, leftEyeWidth),
+        const leftTopToMiddle = pointLineDistance(this._keyPoints.left_eye_top.pos,
+            this._keyPoints.left_eye_inner.pos, this._keyPoints.left_eye_outer.pos);
+        const leftTopToBottom = this._keyPoints.left_eye_top.pos
+            .subtract(this._keyPoints.left_eye_bottom.pos).length();
+        const rightTopToMiddle = pointLineDistance(this._keyPoints.right_eye_top.pos,
+            this._keyPoints.right_eye_inner.pos, this._keyPoints.right_eye_outer.pos);
+        const rightTopToBottom = this._keyPoints.right_eye_top.pos
+            .subtract(this._keyPoints.right_eye_bottom.pos).length();
+
+        this._blinkBase.updatePosition(new Vector3(
+            Math.log(leftTopToMiddle / leftTopToBottom + 1),
+            Math.log(rightTopToMiddle / rightTopToBottom + 1),
+            0));
+        let leftRangeOffset = 0;
+        if (this._leftBlinkArr.length() > 4) {
+            leftRangeOffset = this._leftBlinkArr.values.reduce(
+                (p, c, i) => p + (c - p) / (i + 1), 0) - Poses.BLINK_RATIO_LOW;
+        }
+        const leftBlink = remapRangeNoCap(
+            this._blinkBase.pos.x,
+            Poses.BLINK_RATIO_LOW + leftRangeOffset,
+            Poses.BLINK_RATIO_HIGH + leftRangeOffset,
             0, 1
         );
-        const rightEyeWidth = this._keyPoints.right_eye_inner.pos.subtract(this._keyPoints.right_eye_outer.pos).length();
-        const rightBlink = 1 - remapRangeWithCap(
-            this._keyPoints.right_eye_top.pos
-                .subtract(this._keyPoints.right_eye_bottom.pos)
-                .length() * Poses.EYE_WIDTH_BASELINE / rightEyeWidth * rotationCoeff,
-            findPoint(Poses.BLINK_EYE_WIDTH_CURVE_LOW, rightEyeWidth),
-            findPoint(Poses.BLINK_EYE_WIDTH_CURVE_HIGH, rightEyeWidth),
+        this._leftBlinkArr.push(this._blinkBase.pos.x);
+
+        let rightRangeOffset = 0;
+        if (this._rightBlinkArr.length() > 4) {
+            rightRangeOffset = this._rightBlinkArr.values.reduce(
+                (p, c, i) => p + (c - p) / (i + 1), 0) - Poses.BLINK_RATIO_LOW;
+        }
+        const rightBlink = remapRangeNoCap(
+            this._blinkBase.pos.y,
+            Poses.BLINK_RATIO_LOW + rightRangeOffset,
+            Poses.BLINK_RATIO_HIGH + rightRangeOffset,
             0, 1
         );
+        this._rightBlinkArr.push(this._blinkBase.pos.y);
+
+        console.log(leftBlink, rightBlink);
         const blink = this.lRLink(leftBlink, rightBlink);
 
         this._boneRotations['blink'].set(new Quaternion(
@@ -895,8 +912,9 @@ export class Poses {
                         .scaleInPlace(0.5)
                 );
                 midHipPos.z = 0;    // No depth info
-                if (!this.midHipPos) {
+                if (!this.midHipInitOffset) {
                     this.midHipInitOffset = midHipPos;
+                    Object.freeze(this.midHipInitOffset);
                 }
                 this.midHipOffset.updatePosition(new Vector3(
                     midHipPos.x - this.midHipInitOffset.x,
@@ -904,6 +922,7 @@ export class Poses {
                     midHipPos.z - this.midHipInitOffset.z,
                 ))
                 // TODO: delta_x instead of x
+                // console.log(this.midHipOffset.pos);
                 this.midHipPos = vectorToNormalizedLandmark(this.midHipOffset.pos);
             }
         }
