@@ -41,6 +41,7 @@ import {
     RadToDeg
 } from "./helper/quaternion";
 import {Holistic} from "@mediapipe/holistic";
+import {HolisticState} from "./v3d-web";
 
 const IS_DEBUG = false;
 const clock = new Clock(), textDecode = new TextDecoder();
@@ -66,7 +67,7 @@ async function getCamera() {
             width: 640,
             height: 480,
             deviceId: {
-                exact: devices[1].deviceId
+                exact: devices[0].deviceId
             }
         }
     })
@@ -81,7 +82,8 @@ async function getCamera() {
 export async function createScene(
     engine: Engine,
     workerPose: Comlink.Remote<Poses>,
-    holistic: Holistic) {
+    holistic: Holistic,
+    holisticState: HolisticState) {
     await getCamera();
 
     const vrmFile = 'testfiles/7198176664607455952.vrm';
@@ -123,7 +125,7 @@ export async function createScene(
         () => {
             // Half input fps. This version of Holistic is heavy on CPU time.
             // Wait until they fix web worker (https://github.com/google/mediapipe/issues/2506).
-            if (holisticUpdate) {
+            if (holisticUpdate && holisticState.initialized) {
                 holistic.send({image: videoElement})
             }
             holisticUpdate = !holisticUpdate;

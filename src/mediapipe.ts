@@ -97,6 +97,7 @@ const holisticOptions = {
 export function onResults(
     results: Results,
     vrmManager: VRMManager,
+    videoCanvasElement: Nullable<HTMLCanvasElement> | undefined,
     workerPose: Comlink.Remote<Poses>,
     activeEffect: string,
     fpsControl: Nullable<FPS>
@@ -156,8 +157,7 @@ export function onResults(
     if (fpsControl) fpsControl.tick();
 
     // Get canvas context
-    const videoCanvasElement =
-        document.getElementById('video-canvas') as HTMLCanvasElement;
+    if (!videoCanvasElement) return;
     const videoCanvasCtx = videoCanvasElement.getContext('2d');
     if (!videoCanvasCtx) return;
 

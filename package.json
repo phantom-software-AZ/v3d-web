@@ -8,9 +8,25 @@
         "MediaPipe",
         "WebGL"
     ],
+    "files": [
+        "dist",
+        "dist/src/index.d.ts",
+        "dist/src/index.js",
+        "dist/src/index.js.map",
+        "dist/src/core.d.ts",
+        "dist/src/core.js",
+        "dist/src/core.js.map",
+        "dist/src/mediapipe.d.ts",
+        "dist/src/mediapipe.js",
+        "dist/src/mediapipe.js.map",
+        "dist/src/v3d-web.d.ts",
+        "dist/src/v3d-web.js",
+        "dist/src/v3d-web.js.map",
+        "dist/src/helper",
+        "dist/src/worker"
+    ],
     "license": "AGPL-3.0-only",
     "author": "Phantom Development",
-    "type": "module",
     "scripts": {
         "build": "webpack --config webpack.config.js",
         "debug": "webpack-dev-server --config webpack.test.config.js",
@@ -36,6 +52,6 @@
         "@mediapipe/drawing_utils": "^0.3.1620248257",
         "@mediapipe/holistic": "^0.5.1635989137",
         "comlink": "^4.3.1",
-        "v3d-core": "^1.0.12"
+        "v3d-core": "^1.0.13"
     }
 }

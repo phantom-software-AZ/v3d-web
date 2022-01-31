@@ -1,18 +1,12 @@
-import * as path from 'path';
-import CopyWebpackPlugin from 'copy-webpack-plugin';
-import { fileURLToPath } from 'url';
-
-const CopyPlugin = CopyWebpackPlugin;
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+const path = require( 'path' );
+const CopyPlugin = require( 'copy-webpack-plugin' );
 
 const test_folder = 'test'
 
 const config = {
     mode: 'development',
     devtool: 'inline-source-map',
-    entry: path.resolve(__dirname, 'src', 'index'),
+    entry: path.resolve(__dirname, 'src', 'index-test'),
     output: {
         library: {
             name: 'v3d-web',
@@ -61,4 +55,4 @@ const config = {
     ],
 };
 
-export default config;
+module.exports = config;

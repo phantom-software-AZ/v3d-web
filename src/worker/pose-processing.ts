@@ -543,7 +543,6 @@ export class Poses {
         );
         this._rightBlinkArr.push(this._blinkBase.pos.y);
 
-        console.log(leftBlink, rightBlink);
         const blink = this.lRLink(leftBlink, rightBlink);
 
         this._boneRotations['blink'].set(new Quaternion(

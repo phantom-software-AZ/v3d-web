@@ -187,46 +187,46 @@ export function findPoint(curve: Curve3, x: number, eps = 0.001) {
 
 export const LR = ["left", "right"];
 
-export class CustomLoadingScreen implements ILoadingScreen {
-    //optional, but needed due to interface definitions
-    public loadingUIBackgroundColor: string = '';
-    public loadingUIText: string = '';
-
-    private _loadingDiv = document.getElementById("loading");
-
-    constructor(private readonly renderingCanvas: HTMLCanvasElement) {}
-
-    public displayLoadingUI() {
-        if (!this._loadingDiv) return;
-        if (this._loadingDiv.style.display === 'none') {
-            // Do not add a loading screen if there is already one
-            this._loadingDiv.style.display = "initial";
-        }
-
-        this._resizeLoadingUI();
-        window.addEventListener("resize", this._resizeLoadingUI);
-    }
-
-    public hideLoadingUI() {
-        if (this._loadingDiv)
-            this._loadingDiv.style.display = "none";
-    }
-
-    private _resizeLoadingUI = () => {
-        const canvasRect = this.renderingCanvas.getBoundingClientRect();
-        const canvasPositioning = window.getComputedStyle(this.renderingCanvas).position;
-
-        if (!this._loadingDiv) {
-            return;
-        }
-
-        this._loadingDiv.style.position = (canvasPositioning === "fixed") ? "fixed" : "absolute";
-        this._loadingDiv.style.left = canvasRect.left + "px";
-        this._loadingDiv.style.top = canvasRect.top + "px";
-        this._loadingDiv.style.width = canvasRect.width + "px";
-        this._loadingDiv.style.height = canvasRect.height + "px";
-    }
-}
+// export class CustomLoadingScreen implements ILoadingScreen {
+//     //optional, but needed due to interface definitions
+//     public loadingUIBackgroundColor: string = '';
+//     public loadingUIText: string = '';
+//
+//     private _loadingDiv = document.getElementById("loading");
+//
+//     constructor(private readonly renderingCanvas: HTMLCanvasElement) {}
+//
+//     public displayLoadingUI() {
+//         if (!this._loadingDiv) return;
+//         if (this._loadingDiv.style.display === 'none') {
+//             // Do not add a loading screen if there is already one
+//             this._loadingDiv.style.display = "initial";
+//         }
+//
+//         this._resizeLoadingUI();
+//         window.addEventListener("resize", this._resizeLoadingUI);
+//     }
+//
+//     public hideLoadingUI() {
+//         if (this._loadingDiv)
+//             this._loadingDiv.style.display = "none";
+//     }
+//
+//     private _resizeLoadingUI = () => {
+//         const canvasRect = this.renderingCanvas.getBoundingClientRect();
+//         const canvasPositioning = window.getComputedStyle(this.renderingCanvas).position;
+//
+//         if (!this._loadingDiv) {
+//             return;
+//         }
+//
+//         this._loadingDiv.style.position = (canvasPositioning === "fixed") ? "fixed" : "absolute";
+//         this._loadingDiv.style.left = canvasRect.left + "px";
+//         this._loadingDiv.style.top = canvasRect.top + "px";
+//         this._loadingDiv.style.width = canvasRect.width + "px";
+//         this._loadingDiv.style.height = canvasRect.height + "px";
+//     }
+// }
 
 export function pointLineDistance(
     point: Vector3,
