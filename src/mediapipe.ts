@@ -80,7 +80,13 @@ function connect(
     }
 }
 
-const holisticOptions = {
+export interface HolisticOptions extends Options, OptionMap {
+    cameraOn: boolean;
+    useCpuInference: boolean;    // This is actually official
+    effect: string;
+}
+
+export const InitHolisticOptions: HolisticOptions = Object.freeze({
     selfieMode: true,
     modelComplexity: 1,
     useCpuInference: false,
@@ -92,7 +98,7 @@ const holisticOptions = {
     minDetectionConfidence: 0.5,
     minTrackingConfidence: 0.55,
     effect: 'background',
-};
+});
 
 export function onResults(
     results: Results,
@@ -102,14 +108,12 @@ export function onResults(
     activeEffect: string,
     fpsControl: Nullable<FPS>
 ): void {
+
     // notify loaded.
     document.body.classList.add('loaded');
 
-    // TODO: !!!toggle on before release!!!
     // @ts-ignore: delete camera input to prevent accidental paint
     delete results.image;
-
-    if (!holisticOptions.cameraOn) return;
 
     // Worker process
     workerPose.process(
@@ -117,32 +121,23 @@ export function onResults(
         Comlink.proxy(updateBuffer)
     )
         .then(async (r) => {
-            // if (debugInfo) {
-            //     const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
-            //     const resultFaceNormal = await workerPose.faceNormal;
-            //     const resultIrisQuaternions = await workerPose.irisQuaternion;
-            //     const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
-            //     const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
-            //     const resultLeftHandLandmarks = await workerPose.cloneableLeftHandLandmarks;
-            //     const resultRightHandLandmarks = await workerPose.cloneableRightHandLandmarks;
-            //     const resultLeftHandNormals = await workerPose.leftHandNormals;
-            //     const resultRightHandNormals = await workerPose.rightHandNormals;
-            //     const resultPoseNormals = await workerPose.poseNormals;
-            //     debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
-            //     debugInfo.updateFaceNormalArrows(
-            //         [resultFaceNormal], resultPoseLandmarks);
-            //     debugInfo.updateFaceMeshLandmarkSpheres(
-            //         resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
-            //     // debugInfo.updateHandLandmarkSpheres(resultLeftHandLandmarks, true);
-            //     // debugInfo.updateHandLandmarkSpheres(resultRightHandLandmarks, false);
-            //     debugInfo.updateIrisQuaternionArrows(
-            //         resultIrisQuaternions, resultPoseLandmarks, resultFaceNormal);
-                // debugInfo.updateHandWristNormalArrows(
-                //     resultLeftHandBoneRotations, resultRightHandBoneRotations, resultPoseLandmarks);
-                // debugInfo.updateHandNormalArrows(
-                //     resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
-            //     debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
-            // }
+            if (debugInfo) {
+                const resultPoseLandmarks = await workerPose.cloneablePoseLandmarks;
+                const resultFaceNormal = await workerPose.faceNormal;
+                const resultFaceMeshIndexLandmarks = await workerPose.faceMeshLandmarkIndexList;
+                const resultFaceMeshLandmarks = await workerPose.faceMeshLandmarkList;
+                const resultLeftHandNormals = await workerPose.leftHandNormals;
+                const resultRightHandNormals = await workerPose.rightHandNormals;
+                const resultPoseNormals = await workerPose.poseNormals;
+                debugInfo.updatePoseLandmarkSpheres(resultPoseLandmarks);
+                debugInfo.updateFaceNormalArrows(
+                    [resultFaceNormal], resultPoseLandmarks);
+                debugInfo.updateFaceMeshLandmarkSpheres(
+                    resultFaceMeshIndexLandmarks, resultFaceMeshLandmarks);
+                debugInfo.updateHandNormalArrows(
+                    resultLeftHandNormals, resultRightHandNormals, resultPoseLandmarks);
+                debugInfo.updatePoseNormalArrows(resultPoseNormals, resultPoseLandmarks);
+            }
 
             workerPose.midHipPos.then((v) => {
                 if (v)
@@ -300,16 +295,15 @@ export function onResults(
     videoCanvasCtx.restore();
 }
 
-function setHolisticOptions(x: OptionMap, videoElement: HTMLVideoElement, activeEffect: string, holistic: Holistic) {
-    const options = x as Options;
+export function setHolisticOptions(x: OptionMap, videoElement: HTMLVideoElement, activeEffect: string, holistic: Holistic) {
+    const options = x as HolisticOptions;
     videoElement.classList.toggle('selfie', options.selfieMode);
-    // @ts-ignore
     if (options.cameraOn) {
         videoElement.play();
     } else {
         videoElement.pause();
     }
-    activeEffect = (x as { [key: string]: string })['effect'];
+    activeEffect = options.effect;
     holistic.setOptions(options);
 }
 
@@ -319,9 +313,9 @@ export function createControlPanel(
     controlsElement: HTMLDivElement,
     activeEffect: string,
     fpsControl: Nullable<FPS>) {
-    setHolisticOptions(holisticOptions, videoElement, activeEffect, holistic);
     if (!controlsElement || !fpsControl) return;
 
+    const holisticOptions = Object.assign({}, InitHolisticOptions);
     new ControlPanel(controlsElement, holisticOptions)
         .add([
             new StaticText({title: 'Options'}),

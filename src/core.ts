@@ -50,51 +50,23 @@ let boneRotations: Nullable<CloneableQuaternionMap> = null,
     holisticUpdate = false,
     bonesNeedUpdate = false;
 
-const videoElement =
-    document.getElementsByClassName('input_video')[0] as HTMLVideoElement;
-
-function getVideoDevices() {
-    return navigator.mediaDevices.enumerateDevices();
-}
-
-async function getCamera() {
-    // Ask permission
-    await navigator.mediaDevices.getUserMedia({video: true});
-
-    const devices = (await getVideoDevices()).filter(device => device.kind === 'videoinput');
-    await navigator.mediaDevices.getUserMedia({
-        video: {
-            width: 640,
-            height: 480,
-            deviceId: {
-                exact: devices[0].deviceId
-            }
-        }
-    })
-        .then(stream => {
-            videoElement.srcObject = stream;
-            videoElement.play();
-        })
-        .catch(e => console.error(e));
-}
-
 // Can only have one VRM model at this time
 export async function createScene(
     engine: Engine,
-    workerPose: Comlink.Remote<Poses>,
+    workerPose: Nullable<Comlink.Remote<Poses>>,
     holistic: Holistic,
-    holisticState: HolisticState) {
-    await getCamera();
+    holisticState: HolisticState,
+    vrmFilePath: string,
+    videoElement: HTMLVideoElement): Promise<Nullable<[V3DCore, VRMManager]>> {
 
-    const vrmFile = 'testfiles/7198176664607455952.vrm';
-    // const vrmFile = 'testfiles/Ashtra.vrm';
+    if (!workerPose) return null;
 
     // Create v3d core
     const v3DCore = new V3DCore(engine, new Scene(engine));
-    await v3DCore.AppendAsync('', vrmFile);
+    await v3DCore.AppendAsync('', vrmFilePath);
 
     // Get managers
-    const vrmManager = v3DCore.getVRMManagerByURI(vrmFile);
+    const vrmManager = v3DCore.getVRMManagerByURI(vrmFilePath);
 
     // Camera
     // v3DCore.attachCameraTo(vrmManager);
@@ -125,7 +97,7 @@ export async function createScene(
         () => {
             // Half input fps. This version of Holistic is heavy on CPU time.
             // Wait until they fix web worker (https://github.com/google/mediapipe/issues/2506).
-            if (holisticUpdate && holisticState.initialized) {
+            if (holisticUpdate && holisticState.initialized && !videoElement.paused) {
                 holistic.send({image: videoElement})
             }
             holisticUpdate = !holisticUpdate;
@@ -152,22 +124,11 @@ export async function createScene(
     // Debug
     if (IS_DEBUG && v3DCore.scene) {
         debugInfo = new DebugInfo(v3DCore.scene);
-
-        // @ts-ignore
-        window.vrmManager = vrmManager;
-        // @ts-ignore
-        window.q = Quaternion;
-        // @ts-ignore
-        window.dtr = DegToRad;
-        // @ts-ignore
-        window.rtd = RadToDeg;
-        // @ts-ignore
-        window.r = printQuaternion;
     }
 
     engine.hideLoadingUI();
 
-    return vrmManager;
+    return [v3DCore, vrmManager];
 }
 
 export function updateSpringBones(vrmManager: VRMManager) {

@@ -148,7 +148,7 @@ export class Poses {
     private worldPoseLandmarks: FilteredLandmarkVectorList = initArray<FilteredLandmarkVector>(
         POSE_LANDMARK_LENGTH, () => {
             return new FilteredLandmarkVector({
-                R: 0.1, Q: 1, type: 'Kalman',
+                R: 0.1, Q: 5, type: 'Kalman',
             });  // 0.01, 0.6, 0.007
         });
     // Cannot use Vector3 directly since postMessage() erases all methods
@@ -921,7 +921,6 @@ export class Poses {
                     midHipPos.z - this.midHipInitOffset.z,
                 ))
                 // TODO: delta_x instead of x
-                // console.log(this.midHipOffset.pos);
                 this.midHipPos = vectorToNormalizedLandmark(this.midHipOffset.pos);
             }
         }
@@ -1311,8 +1310,10 @@ export class Poses {
     }
 }
 
-const poseResults: Poses = new Poses();
+export const poseWrapper = {
+    poses: Poses
+};
 
-Comlink.expose(poseResults);
+Comlink.expose(poseWrapper);
 
-export {poseResults};
+export default Poses;

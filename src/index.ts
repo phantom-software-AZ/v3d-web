@@ -15,3 +15,5 @@ Copyright (C) 2021  The v3d Authors.
  */
 
 export * from "./v3d-web";
+export type {CloneableQuaternionMap} from "./helper/quaternion";
+export type {HolisticOptions} from "./mediapipe";

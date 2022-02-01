@@ -25,6 +25,7 @@
     <link rel="preload" href="holistic_solution_packed_assets.data" as="fetch" crossorigin="anonymous"/>
     <link rel="preload" href="holistic_solution_simd_wasm_bin.wasm" as="fetch" crossorigin="anonymous"/>
     <link rel="preload" href="pose_landmark_full.tflite" as="fetch" crossorigin="anonymous"/>
+
 </head>
 
 <body>
@@ -38,12 +39,12 @@
         <canvas id="video-canvas" class="video_output_canvas">
         </canvas>
     </div>
-    <div class="loading" id="loading">
-        <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
-        <div class="message secondary-text-color">
-            Loading...
-        </div>
-    </div>
+<!--    <div class="loading" id="loading">-->
+<!--        <div class="lds-ring"><div></div><div></div><div></div><div></div></div>-->
+<!--        <div class="message secondary-text-color">-->
+<!--            Loading...-->
+<!--        </div>-->
+<!--    </div>-->
     </div>
 </main>
 <script type="module" src="main.test.js"></script>
