@@ -106,6 +106,7 @@ export function onResults(
     videoCanvasElement: Nullable<HTMLCanvasElement> | undefined,
     workerPose: Comlink.Remote<Poses>,
     activeEffect: string,
+    proxiedCallback: ((data: Uint8Array) => void) & Comlink.ProxyMarked,
     fpsControl: Nullable<FPS>
 ): void {
 
@@ -118,7 +119,6 @@ export function onResults(
     // Worker process
     workerPose.process(
         (({segmentationMask, image, ...o}) => o)(results),    // Remove canvas properties
-        Comlink.proxy(updateBuffer)
     )
         .then(async (r) => {
             if (debugInfo) {

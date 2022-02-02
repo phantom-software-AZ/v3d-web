@@ -128,6 +128,8 @@ export class Poses {
     private static readonly MOUTH_WIDTH_BASELINE = 0.095;
     private static readonly LR_FACE_DIRECTION_RANGE = 27;
 
+    // Comlink
+    private _boneRotationUpdateFn: Nullable<((data: Uint8Array) => void) & Comlink.ProxyMarked> = null;
     // VRMManager
     private bonesHierarchyTree: Nullable<TransformNodeTreeNode> = null;
 
@@ -148,7 +150,7 @@ export class Poses {
     private worldPoseLandmarks: FilteredLandmarkVectorList = initArray<FilteredLandmarkVector>(
         POSE_LANDMARK_LENGTH, () => {
             return new FilteredLandmarkVector({
-                R: 0.1, Q: 5, type: 'Kalman',
+                R: 0.1, Q: 0.1, type: 'Kalman',
             });  // 0.01, 0.6, 0.007
         });
     // Cannot use Vector3 directly since postMessage() erases all methods
@@ -287,17 +289,20 @@ export class Poses {
         R: 1, Q: 10, type: 'Kalman',
     });
 
-    constructor() {
+    constructor(
+        boneRotationUpdateFn?: ((data: Uint8Array) => void) & Comlink.ProxyMarked
+    ) {
         this.initBoneRotations();    //provisional
+        if (boneRotationUpdateFn) this._boneRotationUpdateFn = boneRotationUpdateFn;
     }
 
     /**
      * One time operation to set bones hierarchy from VRMManager
      * @param tree root node of tree
      */
-    public setBonesHierarchyTree(tree: TransformNodeTreeNode) {
+    public setBonesHierarchyTree(tree: TransformNodeTreeNode, forceReplace = false) {
         // Assume bones have unique names
-        if (this.bonesHierarchyTree) return;
+        if (this.bonesHierarchyTree && !forceReplace) return;
 
         this.bonesHierarchyTree = tree;
 
@@ -317,11 +322,9 @@ export class Poses {
      *  - Face towards -Z (towards camera) by default
      *  TODO: interpolate results to 60 FPS.
      * @param results Result object from MediaPipe Holistic
-     * @param boneRotationUpdateFn Callback to update bone rotations in main thread
      */
     public process(
-        results: CloneableResults,
-        boneRotationUpdateFn: Function
+        results: CloneableResults
     ) {
         this.cloneableInputResults = results;
         if (!this.cloneableInputResults) return;
@@ -358,12 +361,15 @@ export class Poses {
         this.calcHandBones();
 
         // Post processing
-        this.pushBoneRotationBuffer(boneRotationUpdateFn);
+        this.pushBoneRotationBuffer();
     }
 
-    private resetBoneRotations() {
+    public resetBoneRotations(sendResult = false) {
         for (const [k, v] of Object.entries(this._initBoneRotations)) {
             this._boneRotations[k].set(cloneableQuaternionToQuaternion(v));
+        }
+        if (sendResult) {
+            this.pushBoneRotationBuffer();
         }
     }
 
@@ -1300,13 +1306,13 @@ export class Poses {
 
     }
 
-    private pushBoneRotationBuffer(boneRotationUpdateFn: Function) {
-        // this._boneRotationBuffer.push(this._boneRotations);
+    private pushBoneRotationBuffer() {
+        if (!this._boneRotationUpdateFn) return;
 
         // Callback
         const jsonStr = JSON.stringify(this._boneRotations);
         const arrayBuffer = this.textEncoder.encode(jsonStr);
-        boneRotationUpdateFn(Comlink.transfer(arrayBuffer, [arrayBuffer.buffer]));
+        this._boneRotationUpdateFn(Comlink.transfer(arrayBuffer, [arrayBuffer.buffer]));
     }
 }
 

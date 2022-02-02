@@ -36,37 +36,32 @@ import {KeysMatching} from "./helper/utils";
 import {
     CloneableQuaternionMap,
     cloneableQuaternionToQuaternion,
-    DegToRad,
-    printQuaternion,
-    RadToDeg
 } from "./helper/quaternion";
 import {Holistic} from "@mediapipe/holistic";
-import {HolisticState} from "./v3d-web";
+import {BoneState, HolisticState} from "./v3d-web";
 
 const IS_DEBUG = false;
 const clock = new Clock(), textDecode = new TextDecoder();
 export let debugInfo: Nullable<DebugInfo>;
-let boneRotations: Nullable<CloneableQuaternionMap> = null,
-    holisticUpdate = false,
-    bonesNeedUpdate = false;
 
 // Can only have one VRM model at this time
 export async function createScene(
     engine: Engine,
     workerPose: Nullable<Comlink.Remote<Poses>>,
+    boneState: BoneState,
     holistic: Holistic,
     holisticState: HolisticState,
-    vrmFilePath: string,
+    vrmFile: File | string,
     videoElement: HTMLVideoElement): Promise<Nullable<[V3DCore, VRMManager]>> {
 
     if (!workerPose) return null;
 
     // Create v3d core
     const v3DCore = new V3DCore(engine, new Scene(engine));
-    await v3DCore.AppendAsync('', vrmFilePath);
+    await v3DCore.AppendAsync('', vrmFile);
 
     // Get managers
-    const vrmManager = v3DCore.getVRMManagerByURI(vrmFilePath);
+    const vrmManager = v3DCore.getVRMManagerByURI((vrmFile as File).name ? (vrmFile as File).name : (vrmFile as string));
 
     // Camera
     // v3DCore.attachCameraTo(vrmManager);
@@ -80,10 +75,6 @@ export async function createScene(
     v3DCore.addAmbientLight(new Color3(1, 1, 1));
     v3DCore.setBackgroundColor(Color3.FromHexString('#e7a2ff'));
 
-    // Lock camera target
-    v3DCore.scene?.onBeforeRenderObservable.add(() => {
-
-    });
     v3DCore.renderingPipeline.depthOfFieldEnabled = false;
 
     // Pose web worker
@@ -97,18 +88,18 @@ export async function createScene(
         () => {
             // Half input fps. This version of Holistic is heavy on CPU time.
             // Wait until they fix web worker (https://github.com/google/mediapipe/issues/2506).
-            if (holisticUpdate && holisticState.initialized && !videoElement.paused) {
+            if (holisticState.holisticUpdate && holisticState.ready && !videoElement.paused && videoElement.readyState > 2) {
                 holistic.send({image: videoElement})
             }
-            holisticUpdate = !holisticUpdate;
+            holisticState.holisticUpdate = !holisticState.holisticUpdate;
         }
     );
     v3DCore.updateAfterRenderFunction(
         () => {
-            if (bonesNeedUpdate) {
-                updatePose(vrmManager);
+            if (boneState.bonesNeedUpdate) {
+                updatePose(vrmManager, boneState);
                 updateSpringBones(vrmManager);
-                bonesNeedUpdate = false;
+                boneState.bonesNeedUpdate = false;
             }
         }
     );
@@ -136,29 +127,34 @@ export function updateSpringBones(vrmManager: VRMManager) {
     vrmManager.update(deltaTime);
 }
 
-export function updateBuffer(data: Uint8Array) {
-    const jsonStr = textDecode.decode(data);
-    const boneRotationsData: CloneableQuaternionMap = JSON.parse(jsonStr);
-    boneRotations = boneRotationsData;
-    bonesNeedUpdate = true;
+export function updateBuffer(data: Uint8Array, boneState: BoneState) {
+    let jsonStr = textDecode.decode(data);
+    let boneRotationsData: CloneableQuaternionMap = JSON.parse(jsonStr);
+    boneState.boneRotations = boneRotationsData;
+    boneState.bonesNeedUpdate = true;
+    (data as any) = null;
+    (jsonStr as any) = null;
 }
 
-export function updatePose(vrmManager: VRMManager) {
+export function updatePose(
+    vrmManager: VRMManager,
+    boneState: BoneState,
+) {
     // Wait for buffer to fill
-    if (!boneRotations) return;
+    if (!boneState.boneRotations) return;
 
-    const resultBoneRotations = boneRotations;
+    const resultBoneRotations = boneState.boneRotations;
 
-    vrmManager.morphing('A', boneRotations['mouth'].x);
-    vrmManager.morphing('Blink', boneRotations['blink'].z)
+    vrmManager.morphing('A', resultBoneRotations['mouth'].x);
+    vrmManager.morphing('Blink', resultBoneRotations['blink'].z)
 
     // TODO: option: iris left/right/sync
     if (vrmManager.humanoidBone.leftEye)
         vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(
-            boneRotations['iris']);
+            resultBoneRotations['iris']);
     if (vrmManager.humanoidBone.rightEye)
         vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(
-            boneRotations['iris']);
+            resultBoneRotations['iris']);
 
     const left = 'left';
     for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
