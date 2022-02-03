@@ -32,13 +32,13 @@ import {Clock} from "./helper/clock";
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {HAND_LANDMARKS_BONE_MAPPING} from "./helper/landmark";
 import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
-import {KeysMatching} from "./helper/utils";
+import {KeysMatching, LR} from "./helper/utils";
 import {
     CloneableQuaternionMap,
     cloneableQuaternionToQuaternion,
 } from "./helper/quaternion";
 import {Holistic} from "@mediapipe/holistic";
-import {BoneState, HolisticState} from "./v3d-web";
+import {BoneOptions, BoneState, HolisticState} from "./v3d-web";
 
 const IS_DEBUG = false;
 const clock = new Clock(), textDecode = new TextDecoder();
@@ -49,6 +49,7 @@ export async function createScene(
     engine: Engine,
     workerPose: Nullable<Comlink.Remote<Poses>>,
     boneState: BoneState,
+    boneOptions: BoneOptions,
     holistic: Holistic,
     holisticState: HolisticState,
     vrmFile: File | string,
@@ -97,7 +98,7 @@ export async function createScene(
     v3DCore.updateAfterRenderFunction(
         () => {
             if (boneState.bonesNeedUpdate) {
-                updatePose(vrmManager, boneState);
+                updatePose(vrmManager, boneState, boneOptions);
                 updateSpringBones(vrmManager);
                 boneState.bonesNeedUpdate = false;
             }
@@ -139,6 +140,7 @@ export function updateBuffer(data: Uint8Array, boneState: BoneState) {
 export function updatePose(
     vrmManager: VRMManager,
     boneState: BoneState,
+    boneOptions: BoneOptions
 ) {
     // Wait for buffer to fill
     if (!boneState.boneRotations) return;
@@ -146,9 +148,53 @@ export function updatePose(
     const resultBoneRotations = boneState.boneRotations;
 
     vrmManager.morphing('A', resultBoneRotations['mouth'].x);
-    vrmManager.morphing('Blink', resultBoneRotations['blink'].z)
 
-    // TODO: option: iris left/right/sync
+    const resetExpressions = () => {
+        vrmManager.morphing('Neutral', 0);
+        vrmManager.morphing('Happy', 0);
+        vrmManager.morphing('Joy', 0);
+        vrmManager.morphing('Angry', 0);
+        vrmManager.morphing('Sad', 0);
+        vrmManager.morphing('Sorrow', 0);
+        vrmManager.morphing('Relaxed', 0);
+        vrmManager.morphing('Fun', 0);
+        vrmManager.morphing('Surprised', 0);
+    }
+
+    // Update expression
+    resetExpressions();
+    switch (boneOptions.expression) {
+        case "Angry":
+            vrmManager.morphing('Angry', 1);
+            break;
+        case "Happy":
+            vrmManager.morphing('Happy', 1);
+            vrmManager.morphing('Joy', 1);
+            break;
+        case "Relaxed":
+            vrmManager.morphing('Relaxed', 1);
+            vrmManager.morphing('Fun', 1);
+            break;
+        case "Sad":
+            vrmManager.morphing('Sad', 1);
+            vrmManager.morphing('Sorrow', 1);
+            break;
+        case "Surprised":
+            vrmManager.morphing('Surprised', 1);
+            break;
+        case "Neutral": // fall through
+        default:
+            vrmManager.morphing('Neutral', 1);
+            break;
+    }
+
+    if (boneOptions.blinkLinkLR) {
+        vrmManager.morphing('Blink', resultBoneRotations['blink'].z)
+    } else {
+        vrmManager.morphing('Blink_L', resultBoneRotations['blink'].x)
+        vrmManager.morphing('Blink_R', resultBoneRotations['blink'].y)
+    }
+
     if (vrmManager.humanoidBone.leftEye)
         vrmManager.humanoidBone.leftEye.rotationQuaternion = cloneableQuaternionToQuaternion(
             resultBoneRotations['iris']);
@@ -156,21 +202,13 @@ export function updatePose(
         vrmManager.humanoidBone.rightEye.rotationQuaternion = cloneableQuaternionToQuaternion(
             resultBoneRotations['iris']);
 
-    const left = 'left';
-    for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
-        const key = left + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-        if (vrmManager.humanoidBone[key]) {
-            vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                resultBoneRotations[key]);
-        }
-    }
-
-    const right = 'right';
-    for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
-        const key = right + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
-        if (vrmManager.humanoidBone[key]) {
-            vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
-                resultBoneRotations[key]);
+    for (const d of LR) {
+        for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
+            const key = d + k as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
+            if (vrmManager.humanoidBone[key]) {
+                vrmManager.humanoidBone[key]!.rotationQuaternion = cloneableQuaternionToQuaternion(
+                    resultBoneRotations[key]);
+            }
         }
     }
 
@@ -183,9 +221,8 @@ export function updatePose(
     vrmManager.humanoidBone.head.rotationQuaternion = cloneableQuaternionToQuaternion(
         resultBoneRotations['head']);
 
-    const lr = ["left", "right"];
     // Arms
-    for (const k of lr) {
+    for (const k of LR) {
         const upperArmKey = `${k}UpperArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
         const lowerArmKey = `${k}LowerArm` as unknown as keyof Omit<HumanoidBone, KeysMatching<HumanoidBone, Function>>;
         vrmManager.humanoidBone[upperArmKey]!.rotationQuaternion = cloneableQuaternionToQuaternion(

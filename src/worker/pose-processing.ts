@@ -41,9 +41,17 @@ import {
 } from "../helper/utils";
 import {TransformNodeTreeNode} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {
-    CloneableResults, depthFirstSearch,
-    FACE_LANDMARK_LENGTH, FilteredLandmarkVector, FilteredLandmarkVector3, FilteredLandmarkVectorList,
-    HAND_LANDMARK_LENGTH, HAND_LANDMARKS, handLandMarkToBoneName, normalizedLandmarkToVector,
+    CloneableResults,
+    depthFirstSearch,
+    FACE_LANDMARK_LENGTH,
+    FilteredLandmarkVector,
+    FilteredLandmarkVector3,
+    FilteredLandmarkVectorList,
+    HAND_LANDMARK_LENGTH,
+    HAND_LANDMARKS,
+    HAND_LANDMARKS_BONE_MAPPING,
+    handLandMarkToBoneName,
+    normalizedLandmarkToVector,
     POSE_LANDMARK_LENGTH,
     vectorToNormalizedLandmark
 } from "../helper/landmark";
@@ -60,6 +68,8 @@ import {
 } from "../helper/quaternion";
 import {Basis, calcAvgPlane, getBasis, quaternionBetweenBases} from "../helper/basis";
 import {VISIBILITY_THRESHOLD} from "../helper/filter";
+import {BoneOptions} from "../v3d-web";
+import {HumanoidBone} from "v3d-core/dist/src/importer/babylon-vrm-loader/src/humanoid-bone";
 
 
 export class PoseKeyPoints {
@@ -128,8 +138,14 @@ export class Poses {
     private static readonly MOUTH_WIDTH_BASELINE = 0.095;
     private static readonly LR_FACE_DIRECTION_RANGE = 27;
 
-    // Comlink
-    private _boneRotationUpdateFn: Nullable<((data: Uint8Array) => void) & Comlink.ProxyMarked> = null;
+    // General
+    private _boneOptions: BoneOptions;
+    // Workaround for Promise problem
+    public updateBoneOptions(value: BoneOptions) {
+        this._boneOptions = value;
+    }
+    private readonly _boneRotationUpdateFn: Nullable<((data: Uint8Array) => void) & Comlink.ProxyMarked> = null;
+
     // VRMManager
     private bonesHierarchyTree: Nullable<TransformNodeTreeNode> = null;
 
@@ -150,7 +166,8 @@ export class Poses {
     private worldPoseLandmarks: FilteredLandmarkVectorList = initArray<FilteredLandmarkVector>(
         POSE_LANDMARK_LENGTH, () => {
             return new FilteredLandmarkVector({
-                R: 0.1, Q: 0.1, type: 'Kalman',
+                // R: 0.1, Q: 0.1, type: 'Kalman',
+                R: 0.1, Q: 1, type: 'Kalman',
             });  // 0.01, 0.6, 0.007
         });
     // Cannot use Vector3 directly since postMessage() erases all methods
@@ -290,9 +307,11 @@ export class Poses {
     });
 
     constructor(
+        boneOptions: BoneOptions,
         boneRotationUpdateFn?: ((data: Uint8Array) => void) & Comlink.ProxyMarked
     ) {
         this.initBoneRotations();    //provisional
+        this._boneOptions = boneOptions;
         if (boneRotationUpdateFn) this._boneRotationUpdateFn = boneRotationUpdateFn;
     }
 
@@ -329,7 +348,9 @@ export class Poses {
         this.cloneableInputResults = results;
         if (!this.cloneableInputResults) return;
 
-        // this.resetBoneRotations();
+        if (this._boneOptions.resetInvisible) {
+            this.resetBoneRotations();
+        }
 
         this.preProcessResults();
 
@@ -361,6 +382,59 @@ export class Poses {
         this.calcHandBones();
 
         // Post processing
+        if (this._boneOptions.irisLockX) {
+            this._boneRotations['iris'].set(removeRotationAxisWithCap(
+                cloneableQuaternionToQuaternion(this._boneRotations['iris']),
+                AXIS.x));
+            this._boneRotations['leftIris'].set(removeRotationAxisWithCap(
+                cloneableQuaternionToQuaternion(this._boneRotations['iris']),
+                AXIS.x));
+            this._boneRotations['rightIris'].set(removeRotationAxisWithCap(
+                cloneableQuaternionToQuaternion(this._boneRotations['iris']),
+                AXIS.x));
+        }
+
+        const lockBones: string[] = [];
+        // Holistic doesn't reset hand landmarks when invisible
+        // So we infer invisibility from wrist landmark
+        if (this._boneOptions.resetInvisible) {
+            if ((this.cloneableInputResults?.poseLandmarks[POSE_LANDMARKS.LEFT_WRIST].visibility || 0) < VISIBILITY_THRESHOLD) {
+                for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
+                    const key = `left${k}`;
+                    lockBones.push(key);
+                }
+            }
+            if ((this.cloneableInputResults?.poseLandmarks[POSE_LANDMARKS.RIGHT_WRIST].visibility || 0) < VISIBILITY_THRESHOLD) {
+                for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
+                    const key = `right${k}`;
+                    lockBones.push(key);
+                }
+            }
+        }
+        if (this._boneOptions.lockFinger) {
+            for (const d of LR) {
+                for (const k of Object.keys(HAND_LANDMARKS_BONE_MAPPING)) {
+                    const key = d + k;
+                    lockBones.push(key);
+                }
+            }
+        }
+        if (this._boneOptions.lockArm) {
+            for (const k of LR) {
+                lockBones.push(`${k}UpperArm`);
+                lockBones.push(`${k}LowerArm`);
+            }
+        }
+        if (this._boneOptions.lockLeg) {
+            for (const k of LR) {
+                lockBones.push(`${k}UpperLeg`);
+                lockBones.push(`${k}LowerLeg`);
+                lockBones.push(`${k}Foot`);
+            }
+        }
+        this.filterBoneRotations(lockBones);
+
+        // Push to main
         this.pushBoneRotationBuffer();
     }
 
@@ -370,6 +444,14 @@ export class Poses {
         }
         if (sendResult) {
             this.pushBoneRotationBuffer();
+        }
+    }
+
+    private filterBoneRotations(boneNames: string[]) {
+        for (const k of boneNames) {
+            if (this._boneRotations[k]) {
+                this._boneRotations[k].set(Quaternion.Identity());
+            }
         }
     }
 
@@ -502,13 +584,6 @@ export class Poses {
 
     private calcExpressions() {
         if (!this.cloneableInputResults?.faceLandmarks) return;
-
-        const rotationCoeff = remapRange(
-            Math.abs(cloneableQuaternionToQuaternion(this._boneRotations['head'])
-                .toEulerAngles().z),
-            0, 0.262,
-            1, 1.25
-        );
 
         const leftTopToMiddle = pointLineDistance(this._keyPoints.left_eye_top.pos,
             this._keyPoints.left_eye_inner.pos, this._keyPoints.left_eye_outer.pos);

@@ -34,6 +34,7 @@ import {createControlPanel, HolisticOptions, InitHolisticOptions, onResults, set
 import {VRMManager} from "v3d-core/dist/src/importer/babylon-vrm-loader/src";
 import {V3DCore} from "v3d-core/dist/src";
 import {CloneableQuaternionMap} from "./helper/quaternion";
+import {CustomLoadingScreen} from "./helper/utils";
 
 
 export interface HolisticState {
@@ -46,7 +47,8 @@ export interface BoneState {
     bonesNeedUpdate: boolean;
 }
 export interface BoneOptions {
-    irisLinkLR: boolean;
+    blinkLinkLR: boolean;
+    expression: "Neutral" | "Happy" | "Angry" | "Sad" | "Relaxed" | "Surprised";
     irisLockX: boolean;
     lockFinger: boolean;
     lockArm: boolean;
@@ -62,7 +64,8 @@ export class V3DWeb {
         bonesNeedUpdate: false,
     }
     private _boneOptions: BoneOptions = {
-        irisLinkLR: true,
+        blinkLinkLR: true,
+        expression: "Neutral",
         irisLockX: true,
         lockFinger: false,
         lockArm: false,
@@ -74,10 +77,13 @@ export class V3DWeb {
     }
     set boneOptions(value: BoneOptions) {
         this._boneOptions = value;
+        this.workerPose?.updateBoneOptions(this._boneOptions);
     }
     private readonly _updateBufferCallback = Comlink.proxy((data: Uint8Array) => {
         updateBuffer(data, this.boneState)
     });
+
+    private customLoadingScreen: Nullable<CustomLoadingScreen> = null;
 
     private _v3DCore: Nullable<V3DCore> = null;
     get v3DCore(): Nullable<V3DCore>{
@@ -122,6 +128,7 @@ export class V3DWeb {
         public readonly videoCanvasElement?: Nullable<HTMLCanvasElement>,
         public readonly controlsElement?: Nullable<HTMLDivElement>,
         private readonly holisticConfig?: HolisticConfig,
+        private readonly loadingDiv?: Nullable<HTMLDivElement>,
         afterInitCallback?: (...args : any[]) => any,
     ) {
         let globalInit = false;
@@ -150,7 +157,11 @@ export class V3DWeb {
             throw Error("WebGL is not supported in this browser!");
         }
         // Loading screen
-        this.engine.displayLoadingUI();
+        if (this.loadingDiv) {
+            this.customLoadingScreen =
+                new CustomLoadingScreen(this.webglCanvasElement, this.loadingDiv);
+        }
+        this.customLoadingScreen?.displayLoadingUI();
 
         /**
          * Comlink/workers
@@ -159,13 +170,15 @@ export class V3DWeb {
             new URL("./worker/pose-processing", import.meta.url),
             {type: 'module'});
         const posesRemote = Comlink.wrap<typeof poseWrapper>(this.worker);
-        const Poses = new posesRemote.poses(this._updateBufferCallback);
+        const Poses = new posesRemote.poses(
+            this.boneOptions, this._updateBufferCallback);
         Poses.then((v) => {
             if (!v) throw Error('Worker start failed!');
             this.workerPose = v;
 
             createScene(
-                this.engine, this.workerPose, this.boneState,
+                this.engine, this.workerPose,
+                this.boneState, this.boneOptions,
                 this.holistic, this.holisticState,
                 this._vrmFile, this.videoElement!
             ).then((value) => {
@@ -201,6 +214,8 @@ export class V3DWeb {
 
                                 this.holistic.onResults(mainOnResults);
                                 this.holisticState.ready = true;
+
+                                this.customLoadingScreen?.hideLoadingUI();
 
                                 if (afterInitCallback) afterInitCallback();
                             });
@@ -304,7 +319,7 @@ export class V3DWeb {
         this.v3DCore.updateAfterRenderFunction(
             () => {
                 if (this.boneState.bonesNeedUpdate) {
-                    updatePose(this._vrmManager!, this.boneState);
+                    updatePose(this._vrmManager!, this.boneState, this.boneOptions);
                     updateSpringBones(this._vrmManager!);
                     this.boneState.bonesNeedUpdate = false;
                 }
